@@ -266,10 +266,10 @@ client.once("ready", async () => {
                 description: "تغيير اللون",
                 options: [
                     { type: 3, name: "color", description: "اللون", required: true, choices: [
-                        { name: "ازرق", value: "#3b82f6" },
-                        { name: "اخضر", value: "#10b981" },
-                        { name: "احمر", value: "#ef4444" },
-                        { name: "بنفسجي", value: "#8b5cf6" }
+                        { name: "ازرق", value: "blue" },
+                        { name: "اخضر", value: "green" },
+                        { name: "احمر", value: "red" },
+                        { name: "بنفسجي", value: "purple" }
                     ]}
                 ]
             },
@@ -345,13 +345,22 @@ client.on("interactionCreate", async interaction => {
     }
     else if (interaction.commandName === "design") {
         const color = interaction.options.getString("color");
-        const r = parseInt(color.slice(1,3), 16);
-        const g = parseInt(color.slice(3,5), 16);
-        const b = parseInt(color.slice(5,7), 16);
+        let r, g, b;
+        if (color === "blue") { r=59; g=130; b=246; }
+        else if (color === "green") { r=16; g=185; b=129; }
+        else if (color === "red") { r=239; g=68; b=68; }
+        else if (color === "purple") { r=139; g=92; b=246; }
+        else { r=59; g=130; b=246; }
+        
         currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
+        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
+        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
+        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
+        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
+        
         await deployToNetlify(currentHtml);
         updateLogs.push(`[${new Date().toLocaleString()}] تغيير اللون`);
-        interaction.editReply("تم");
+        interaction.editReply("تم تغيير اللون");
     }
     else if (interaction.commandName === "stats") {
         try {
