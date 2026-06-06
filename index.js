@@ -2,9 +2,9 @@ const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 
-const DISCORD_TOKEN = 'MTUxMjU4OTY2ODc1ODA2NTI5NA.GznxTn.Tz-SJoXx8C174r9qgdRopn8nXNi9TZ_bBfY3RU';
-const NETLIFY_TOKEN = 'nfp_zPNkDkWrvf6RbfubMLfcTEQWRaH2pD9h734f';
-const SITE_ID = '5be14452-aab0-43df-9c07-8dd8de8222a4';
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
+const SITE_ID = process.env.SITE_ID;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessages] });
 
