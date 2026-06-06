@@ -1,6 +1,6 @@
-import { createHash } from 'crypto';
 import { verifyKey } from 'discord-interactions';
 import fetch from 'node-fetch';
+import { createHash } from 'crypto';
 
 const DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -33,41 +33,28 @@ async function deployToNetlify(content) {
         method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
     });
     if (!uploadRes.ok) return false;
-    
-    for (let i = 0; i < 10; i++) {
-        await new Promise(r => setTimeout(r, 1000));
-        const statusRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
-            headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }
-        });
-        if (statusRes.ok) {
-            const { state } = await statusRes.json();
-            if (state === "ready") return true;
-        }
-    }
     return true;
 }
 
-async function sendFollowup(interactionToken, content) {
-    const url = `https://discord.com/api/v10/webhooks/${process.env.DISCORD_APP_ID}/${interactionToken}/messages/@original`;
-    await fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content })
-    });
-}
-
-async function sendDeferredResponse(interactionToken) {
-    const url = `https://discord.com/api/v10/interactions/${interactionToken}/callback`;
-    await fetch(url, {
+async function sendCallback(interactionId, token) {
+    await fetch(`https://discord.com/api/v10/interactions/${interactionId}/${token}/callback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: 5 })
     });
 }
 
-export async function handler(req, res) {
+async function sendFollowup(token, content) {
+    await fetch(`https://discord.com/api/v10/webhooks/${process.env.DISCORD_APP_ID}/${token}/messages/@original`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content })
+    });
+}
+
+export default async function handler(req, res) {
     if (req.method !== 'POST') {
-        return res.status(405).send('Method Not Allowed');
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
     const signature = req.headers['x-signature-ed25519'];
@@ -76,7 +63,7 @@ export async function handler(req, res) {
     
     const isValid = verifyKey(body, signature, timestamp, DISCORD_PUBLIC_KEY);
     if (!isValid) {
-        return res.status(401).send('Invalid signature');
+        return res.status(401).json({ error: 'Invalid signature' });
     }
 
     const interaction = req.body;
@@ -86,11 +73,10 @@ export async function handler(req, res) {
     }
 
     if (interaction.type === 2) {
-        const { name, options } = interaction.data;
-        
-        sendDeferredResponse(interaction.id, interaction.token);
-        
+        await sendCallback(interaction.id, interaction.token);
         await fetchCurrentHtml();
+        
+        const { name, options } = interaction.data;
         
         if (name === "app") {
             const fileUrl = options[0].value;
@@ -144,6 +130,6 @@ export async function handler(req, res) {
         
         return res.status(200).json({ type: 5 });
     }
-    
-    return res.status(400).send('Unknown interaction type');
+
+    return res.status(400).json({ error: 'Unknown interaction type' });
 }
