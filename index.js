@@ -8,7 +8,6 @@ const SITE_ID = process.env.SITE_ID;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-let updateLogs = [];
 let currentHtml = "";
 
 async function fetchCurrentHtml() {
@@ -36,6 +35,17 @@ async function deployToNetlify(content) {
         method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
     });
     if (!uploadRes.ok) return false;
+    
+    for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        const statusRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
+            headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }
+        });
+        if (statusRes.ok) {
+            const { state } = await statusRes.json();
+            if (state === "ready") return true;
+        }
+    }
     return true;
 }
 
@@ -68,20 +78,8 @@ client.once("ready", async () => {
                 ]
             },
             {
-                name: "announce",
-                description: "ارسال اعلان",
-                options: [
-                    { type: 7, name: "channel", description: "القناة", required: true },
-                    { type: 3, name: "message", description: "النص", required: true }
-                ]
-            },
-            {
-                name: "logs",
-                description: "اخر 10 تغييرات"
-            },
-            {
                 name: "design",
-                description: "تغيير اللون",
+                description: "تغيير لون الموقع",
                 options: [
                     { type: 3, name: "color", description: "اللون", required: true, choices: [
                         { name: "ازرق", value: "blue" },
@@ -89,17 +87,6 @@ client.once("ready", async () => {
                         { name: "احمر", value: "red" },
                         { name: "بنفسجي", value: "purple" }
                     ]}
-                ]
-            },
-            {
-                name: "stats",
-                description: "احصائيات التحميلات"
-            },
-            {
-                name: "users",
-                description: "احصائيات الزوار",
-                options: [
-                    { type: 7, name: "channel", description: "القناة", required: true }
                 ]
             }
         ]
@@ -119,7 +106,6 @@ client.on("interactionCreate", async interaction => {
         const res = await fetch(file.url);
         currentHtml = await res.text();
         await deployToNetlify(currentHtml);
-        updateLogs.push(`[${new Date().toLocaleString()}] رفع ملف`);
         interaction.editReply("تم");
     }
     else if (interaction.commandName === "version") {
@@ -135,7 +121,6 @@ client.on("interactionCreate", async interaction => {
             });
         }
         await deployToNetlify(currentHtml);
-        updateLogs.push(`[${new Date().toLocaleString()}] تغيير حالة ${hack}`);
         interaction.editReply("تم");
     }
     else if (interaction.commandName === "link") {
@@ -148,19 +133,7 @@ client.on("interactionCreate", async interaction => {
             currentHtml = currentHtml.slice(0, matches[idx].index + 24) + url + currentHtml.slice(matches[idx].index + 24 + matches[idx][2].length);
         }
         await deployToNetlify(currentHtml);
-        updateLogs.push(`[${new Date().toLocaleString()}] تغيير رابط ${hack}`);
         interaction.editReply("تم");
-    }
-    else if (interaction.commandName === "announce") {
-        const channel = interaction.options.getChannel("channel");
-        const message = interaction.options.getString("message");
-        if (!channel.isTextBased()) return interaction.editReply("خطا");
-        await channel.send(message);
-        interaction.editReply("تم");
-    }
-    else if (interaction.commandName === "logs") {
-        if (updateLogs.length === 0) return interaction.editReply("لا يوجد");
-        interaction.editReply(updateLogs.slice(-10).reverse().join("\n"));
     }
     else if (interaction.commandName === "design") {
         const color = interaction.options.getString("color");
@@ -171,38 +144,11 @@ client.on("interactionCreate", async interaction => {
         else if (color === "purple") { r=139; g=92; b=246; }
         else { r=59; g=130; b=246; }
         
-        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
-        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
-        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
-        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
-        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
+        currentHtml = currentHtml.replace(/rgb\(59,130,246\)/g, `rgb(${r},${g},${b})`);
+        currentHtml = currentHtml.replace(/rgba\(59,130,246,/g, `rgba(${r},${g},${b},`);
         
         await deployToNetlify(currentHtml);
-        updateLogs.push(`[${new Date().toLocaleString()}] تغيير اللون`);
-        interaction.editReply("تم تغيير اللون");
-    }
-    else if (interaction.commandName === "stats") {
-        try {
-            const res = await fetch("https://api.github.com/repos/Majeedl12/Majed.dev/releases");
-            const releases = await res.json();
-            let delta = 0, arceus = 0;
-            releases.forEach(release => {
-                if (release.tag_name && release.tag_name.includes("Delta")) {
-                    delta += release.assets.reduce((s, a) => s + (a.download_count || 0), 0);
-                }
-                if (release.tag_name && release.tag_name.includes("Arceus")) {
-                    arceus += release.assets.reduce((s, a) => s + (a.download_count || 0), 0);
-                }
-            });
-            interaction.editReply(`Delta: ${delta}\nArceus Neo: ${arceus}`);
-        } catch(e) {
-            interaction.editReply("فشل");
-        }
-    }
-    else if (interaction.commandName === "users") {
-        const channel = interaction.options.getChannel("channel");
         interaction.editReply("تم");
-        channel.send("جاري جلب البيانات...");
     }
 });
 
