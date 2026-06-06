@@ -199,30 +199,33 @@ function downloadWithDelay(event, url) {
 </html>`;
 
 async function deployToNetlify(content) {
-    const sha1 = createHash("sha1").update(content).digest("hex");
-    const createRes = await fetch(`https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ files: { "/index.html": sha1 } })
-    });
-    if (!createRes.ok) return { ok: false };
-    const { id: deployId } = await createRes.json();
-    const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`, {
-        method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
-    });
-    if (!uploadRes.ok) return { ok: false };
-    for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 1500));
-        const statusRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
-            headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }
+    try {
+        const sha1 = createHash("sha1").update(content).digest("hex");
+        const createRes = await fetch(`https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ files: { "/index.html": sha1 } })
         });
-        if (statusRes.ok) {
-            const { state } = await statusRes.json();
-            if (state === "ready") return { ok: true };
-            if (state === "error") return { ok: false };
+        if (!createRes.ok) return false;
+        const { id: deployId } = await createRes.json();
+        const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`, {
+            method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
+        });
+        if (!uploadRes.ok) return false;
+        for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+            const statusRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
+                headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }
+            });
+            if (statusRes.ok) {
+                const { state } = await statusRes.json();
+                if (state === "ready") return true;
+            }
         }
+        return true;
+    } catch(e) {
+        return false;
     }
-    return { ok: false };
 }
 
 client.once("ready", async () => {
@@ -233,11 +236,8 @@ client.once("ready", async () => {
         const res = await fetch(siteUrl);
         if (res.ok) {
             currentHtml = await res.text();
-            console.log("Loaded current HTML from Netlify");
         }
-    } catch (e) {
-        console.log("Error fetching from Netlify, using default");
-    }
+    } catch (e) {}
     
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
     await rest.put(Routes.applicationCommands(client.user.id), {
@@ -306,16 +306,16 @@ client.once("ready", async () => {
 client.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
     
-    await interaction.deferReply();
+    await interaction.deferReply({ ephemeral: false });
     
     if (interaction.commandName === "app") {
         const file = interaction.options.getAttachment("file");
-        if (!file || !file.name.endsWith(".html")) return interaction.editReply("يرجى رفع ملف html");
+        if (!file || !file.name.endsWith(".html")) return interaction.editReply("ارفع ملف html");
         const res = await fetch(file.url);
         currentHtml = await res.text();
-        const { ok } = await deployToNetlify(currentHtml);
-        updateLogs.push(`[${new Date().toLocaleString()}] تم رفع ملف جديد`);
-        interaction.editReply(ok ? `تم النشر\nhttps://${SITE_ID}.netlify.app` : "فشل النشر");
+        const ok = await deployToNetlify(currentHtml);
+        updateLogs.push(`[${new Date().toLocaleString()}] رفع ملف`);
+        interaction.editReply(ok ? "تم النشر" : "فشل");
     }
     else if (interaction.commandName === "version") {
         const hack = interaction.options.getString("hack");
@@ -329,9 +329,9 @@ client.on("interactionCreate", async interaction => {
                 return match;
             });
         }
-        const { ok } = await deployToNetlify(currentHtml);
-        updateLogs.push(`[${new Date().toLocaleString()}] تم تغيير حالة ${hack} إلى ${status}`);
-        interaction.editReply(ok ? `تم تغيير حالة ${hack}` : "فشل التغيير");
+        const ok = await deployToNetlify(currentHtml);
+        updateLogs.push(`[${new Date().toLocaleString()}] تغيير حالة ${hack}`);
+        interaction.editReply(ok ? "تم" : "فشل");
     }
     else if (interaction.commandName === "link") {
         const hack = interaction.options.getString("hack");
@@ -342,21 +342,20 @@ client.on("interactionCreate", async interaction => {
         if (matches[idx]) {
             currentHtml = currentHtml.slice(0, matches[idx].index + 24) + url + currentHtml.slice(matches[idx].index + 24 + matches[idx][2].length);
         }
-        const { ok } = await deployToNetlify(currentHtml);
-        updateLogs.push(`[${new Date().toLocaleString()}] تم تغيير رابط ${hack}`);
-        interaction.editReply(ok ? `تم تغيير رابط ${hack}` : "فشل التغيير");
+        const ok = await deployToNetlify(currentHtml);
+        updateLogs.push(`[${new Date().toLocaleString()}] تغيير رابط ${hack}`);
+        interaction.editReply(ok ? "تم" : "فشل");
     }
     else if (interaction.commandName === "announce") {
         const channel = interaction.options.getChannel("channel");
         const message = interaction.options.getString("message");
-        if (!channel.isTextBased()) return interaction.editReply("القناة غير صالحة");
+        if (!channel.isTextBased()) return interaction.editReply("خطا");
         await channel.send(message);
         interaction.editReply("تم");
     }
     else if (interaction.commandName === "logs") {
         if (updateLogs.length === 0) return interaction.editReply("لا يوجد");
-        const logList = updateLogs.slice(-10).reverse().map((log, i) => `${i+1}. ${log}`).join("\n");
-        interaction.editReply(logList);
+        interaction.editReply(updateLogs.slice(-10).reverse().join("\n"));
     }
     else if (interaction.commandName === "design") {
         const color = interaction.options.getString("color");
@@ -364,32 +363,32 @@ client.on("interactionCreate", async interaction => {
         const g = parseInt(color.slice(3,5), 16);
         const b = parseInt(color.slice(5,7), 16);
         currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
-        const { ok } = await deployToNetlify(currentHtml);
-        updateLogs.push(`[${new Date().toLocaleString()}] تم تغيير اللون`);
-        interaction.editReply(ok ? "تم تغيير اللون" : "فشل");
+        const ok = await deployToNetlify(currentHtml);
+        updateLogs.push(`[${new Date().toLocaleString()}] تغيير اللون`);
+        interaction.editReply(ok ? "تم" : "فشل");
     }
     else if (interaction.commandName === "stats") {
         try {
-            const deltaRes = await fetch("https://api.github.com/repos/Majeedl12/Majed.dev/releases");
-            const releases = await deltaRes.json();
-            let deltaDownloads = 0, arceusDownloads = 0;
+            const res = await fetch("https://api.github.com/repos/Majeedl12/Majed.dev/releases");
+            const releases = await res.json();
+            let delta = 0, arceus = 0;
             releases.forEach(release => {
                 if (release.tag_name && release.tag_name.includes("Delta")) {
-                    deltaDownloads += release.assets.reduce((sum, asset) => sum + (asset.download_count || 0), 0);
+                    delta += release.assets.reduce((s, a) => s + (a.download_count || 0), 0);
                 }
                 if (release.tag_name && release.tag_name.includes("Arceus")) {
-                    arceusDownloads += release.assets.reduce((sum, asset) => sum + (asset.download_count || 0), 0);
+                    arceus += release.assets.reduce((s, a) => s + (a.download_count || 0), 0);
                 }
             });
-            interaction.editReply(`DELTA: ${deltaDownloads}\nArceus Neo: ${arceusDownloads}`);
+            interaction.editReply(`Delta: ${delta}\nArceus Neo: ${arceus}`);
         } catch(e) {
             interaction.editReply("فشل");
         }
     }
     else if (interaction.commandName === "users") {
         const channel = interaction.options.getChannel("channel");
-        interaction.editReply(`تم`);
-        channel.send("يتم جلب البيانات...");
+        interaction.editReply("تم");
+        channel.send("جاري جلب البيانات...");
     }
 });
 
