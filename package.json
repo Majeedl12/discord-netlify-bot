@@ -1,0 +1,10 @@
+{
+  "name": "discord-bot",
+  "scripts": { "start": "ts-node src/index.ts" },
+  "dependencies": {
+    "discord.js": "^14.0.0",
+    "node-fetch": "^2.6.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  }
+}
