@@ -305,19 +305,20 @@ client.once("ready", async () => {
 
 client.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
-    await interaction.deferReply();
     
     if (interaction.commandName === "app") {
+        await interaction.deferReply();
         const file = interaction.options.getAttachment("file");
-        if (!file || !file.name.endsWith(".html")) return interaction.followUp("يرجى رفع ملف html");
+        if (!file || !file.name.endsWith(".html")) return interaction.editReply("يرجى رفع ملف html");
         const res = await fetch(file.url);
         currentHtml = await res.text();
         const { ok, msg } = await deployToNetlify(currentHtml);
         const logEntry = `[${new Date().toLocaleString()}] تم رفع ملف جديد عبر /app`;
         updateLogs.push(logEntry);
-        interaction.followUp(ok ? `تم النشر\nhttps://${SITE_ID}.netlify.app` : `فشل: ${msg}`);
+        interaction.editReply(ok ? `تم النشر\nhttps://${SITE_ID}.netlify.app` : `فشل: ${msg}`);
     }
     else if (interaction.commandName === "version") {
+        await interaction.deferReply();
         const hack = interaction.options.getString("hack");
         const status = interaction.options.getString("status");
         if (hack === "DELTA") {
@@ -332,9 +333,10 @@ client.on("interactionCreate", async interaction => {
         const { ok, msg } = await deployToNetlify(currentHtml);
         const logEntry = `[${new Date().toLocaleString()}] تم تغيير حالة ${hack} إلى ${status}`;
         updateLogs.push(logEntry);
-        interaction.followUp(ok ? `تم تغيير حالة ${hack} إلى ${status}` : `فشل: ${msg}`);
+        interaction.editReply(ok ? `تم تغيير حالة ${hack} إلى ${status}` : `فشل: ${msg}`);
     }
     else if (interaction.commandName === "link") {
+        await interaction.deferReply();
         const hack = interaction.options.getString("hack");
         const url = interaction.options.getString("url");
         const linkPattern = /(downloadWithDelay\(event, ')(.*?)('\))/g;
@@ -346,21 +348,24 @@ client.on("interactionCreate", async interaction => {
         const { ok, msg } = await deployToNetlify(currentHtml);
         const logEntry = `[${new Date().toLocaleString()}] تم تغيير رابط ${hack} إلى ${url}`;
         updateLogs.push(logEntry);
-        interaction.followUp(ok ? `تم تغيير رابط ${hack} إلى ${url}` : `فشل: ${msg}`);
+        interaction.editReply(ok ? `تم تغيير رابط ${hack} إلى ${url}` : `فشل: ${msg}`);
     }
     else if (interaction.commandName === "announce") {
+        await interaction.deferReply();
         const channel = interaction.options.getChannel("channel");
         const message = interaction.options.getString("message");
-        if (!channel.isTextBased()) return interaction.followUp("القناة غير صالحة");
+        if (!channel.isTextBased()) return interaction.editReply("القناة غير صالحة");
         await channel.send(`اعلان جديد\n${message}`);
-        interaction.followUp("تم ارسال الاعلان");
+        interaction.editReply("تم ارسال الاعلان");
     }
     else if (interaction.commandName === "logs") {
-        if (updateLogs.length === 0) return interaction.followUp("لا يوجد سجل تغييرات");
+        await interaction.deferReply();
+        if (updateLogs.length === 0) return interaction.editReply("لا يوجد سجل تغييرات");
         const logList = updateLogs.slice(-10).reverse().map((log, i) => `${i+1}. ${log}`).join("\n");
-        interaction.followUp(`اخر التغييرات:\n${logList}`);
+        interaction.editReply(`اخر التغييرات:\n${logList}`);
     }
     else if (interaction.commandName === "design") {
+        await interaction.deferReply();
         const color = interaction.options.getString("color");
         const r = parseInt(color.slice(1,3), 16);
         const g = parseInt(color.slice(3,5), 16);
@@ -369,10 +374,10 @@ client.on("interactionCreate", async interaction => {
         const { ok, msg } = await deployToNetlify(currentHtml);
         const logEntry = `[${new Date().toLocaleString()}] تم تغيير اللون إلى ${color}`;
         updateLogs.push(logEntry);
-        interaction.followUp(ok ? `تم تغيير اللون إلى ${color}` : `فشل: ${msg}`);
+        interaction.editReply(ok ? `تم تغيير اللون إلى ${color}` : `فشل: ${msg}`);
     }
     else if (interaction.commandName === "stats") {
-        await interaction.followUp("جاري جلب الاحصائيات...");
+        await interaction.deferReply();
         try {
             const deltaRes = await fetch("https://api.github.com/repos/Majeedl12/Majed.dev/releases");
             const releases = await deltaRes.json();
@@ -391,8 +396,9 @@ client.on("interactionCreate", async interaction => {
         }
     }
     else if (interaction.commandName === "users") {
+        await interaction.deferReply();
         const channel = interaction.options.getChannel("channel");
-        interaction.followUp(`سيتم ارسال احصائيات الزوار إلى ${channel}`);
+        interaction.editReply(`سيتم ارسال احصائيات الزوار إلى ${channel}`);
         channel.send("احصائيات الزوار: يتم جلب البيانات...");
     }
 });
