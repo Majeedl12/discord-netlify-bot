@@ -1,0 +1,17 @@
+{
+  "site_name": "هاكات - Android",
+  "theme_color": "ازرق",
+  "notification_channel_id": 0,
+  "delta": {
+    "name": "DELTA",
+    "version": "الاصدار الاخير",
+    "image": "https://deltaexploits.gg/assets/android.webp",
+    "link": "https://github.com/Majeedl12/Majed.dev/releases/download/Delta/Delta-2.721.1108.apk"
+  },
+  "arceus": {
+    "name": "Arceus Neo",
+    "version": "الاصدار الاخير",
+    "image": "https://techylist.com/wp-content/uploads/2022/11/arceus-x-first.jpeg",
+    "link": "https://github.com/Majeedl12/Majed.dev/releases/download/Arceus_1/Roblox.Arceus.X.NEO.2.2.2.apk"
+  }
+}
