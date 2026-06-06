@@ -80,17 +80,24 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
+    
     await interaction.deferReply();
+    
     await fetchCurrentHtml();
+    
     try {
         if (interaction.commandName === 'app') {
             const file = interaction.options.getAttachment('file');
-            if (!file || !file.name.endsWith('.html')) return interaction.editReply('ارفع ملف html');
+            if (!file || !file.name.endsWith('.html')) {
+                await interaction.editReply('ارفع ملف html');
+                return;
+            }
             const res = await fetch(file.url);
             currentHtml = await res.text();
             await deployToNetlify(currentHtml);
             await interaction.editReply('تم');
-        } else if (interaction.commandName === 'version') {
+        }
+        else if (interaction.commandName === 'version') {
             const hack = interaction.options.getString('hack');
             const status = interaction.options.getString('status');
             if (hack === 'DELTA') {
@@ -101,7 +108,8 @@ client.on('interactionCreate', async interaction => {
             }
             await deployToNetlify(currentHtml);
             await interaction.editReply('تم');
-        } else if (interaction.commandName === 'link') {
+        }
+        else if (interaction.commandName === 'link') {
             const hack = interaction.options.getString('hack');
             const url = interaction.options.getString('url');
             const regex = /downloadWithDelay\(event, '([^']+)'\)/g;
@@ -112,7 +120,8 @@ client.on('interactionCreate', async interaction => {
             }
             await deployToNetlify(currentHtml);
             await interaction.editReply('تم');
-        } else if (interaction.commandName === 'design') {
+        }
+        else if (interaction.commandName === 'design') {
             const color = interaction.options.getString('color');
             let r, g, b;
             if (color === 'blue') { r=59; g=130; b=246; }
