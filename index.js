@@ -199,33 +199,19 @@ function downloadWithDelay(event, url) {
 </html>`;
 
 async function deployToNetlify(content) {
-    try {
-        const sha1 = createHash("sha1").update(content).digest("hex");
-        const createRes = await fetch(`https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ files: { "/index.html": sha1 } })
-        });
-        if (!createRes.ok) return false;
-        const { id: deployId } = await createRes.json();
-        const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`, {
-            method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
-        });
-        if (!uploadRes.ok) return false;
-        for (let i = 0; i < 15; i++) {
-            await new Promise(r => setTimeout(r, 1000));
-            const statusRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
-                headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }
-            });
-            if (statusRes.ok) {
-                const { state } = await statusRes.json();
-                if (state === "ready") return true;
-            }
-        }
-        return true;
-    } catch(e) {
-        return false;
-    }
+    const sha1 = createHash("sha1").update(content).digest("hex");
+    const createRes = await fetch(`https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ files: { "/index.html": sha1 } })
+    });
+    if (!createRes.ok) return false;
+    const { id: deployId } = await createRes.json();
+    const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`, {
+        method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
+    });
+    if (!uploadRes.ok) return false;
+    return true;
 }
 
 client.once("ready", async () => {
@@ -306,16 +292,16 @@ client.once("ready", async () => {
 client.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
     
-    await interaction.deferReply({ ephemeral: false });
+    await interaction.deferReply();
     
     if (interaction.commandName === "app") {
         const file = interaction.options.getAttachment("file");
         if (!file || !file.name.endsWith(".html")) return interaction.editReply("ارفع ملف html");
         const res = await fetch(file.url);
         currentHtml = await res.text();
-        const ok = await deployToNetlify(currentHtml);
+        await deployToNetlify(currentHtml);
         updateLogs.push(`[${new Date().toLocaleString()}] رفع ملف`);
-        interaction.editReply(ok ? "تم النشر" : "فشل");
+        interaction.editReply("تم");
     }
     else if (interaction.commandName === "version") {
         const hack = interaction.options.getString("hack");
@@ -329,9 +315,9 @@ client.on("interactionCreate", async interaction => {
                 return match;
             });
         }
-        const ok = await deployToNetlify(currentHtml);
+        await deployToNetlify(currentHtml);
         updateLogs.push(`[${new Date().toLocaleString()}] تغيير حالة ${hack}`);
-        interaction.editReply(ok ? "تم" : "فشل");
+        interaction.editReply("تم");
     }
     else if (interaction.commandName === "link") {
         const hack = interaction.options.getString("hack");
@@ -342,9 +328,9 @@ client.on("interactionCreate", async interaction => {
         if (matches[idx]) {
             currentHtml = currentHtml.slice(0, matches[idx].index + 24) + url + currentHtml.slice(matches[idx].index + 24 + matches[idx][2].length);
         }
-        const ok = await deployToNetlify(currentHtml);
+        await deployToNetlify(currentHtml);
         updateLogs.push(`[${new Date().toLocaleString()}] تغيير رابط ${hack}`);
-        interaction.editReply(ok ? "تم" : "فشل");
+        interaction.editReply("تم");
     }
     else if (interaction.commandName === "announce") {
         const channel = interaction.options.getChannel("channel");
@@ -363,9 +349,9 @@ client.on("interactionCreate", async interaction => {
         const g = parseInt(color.slice(3,5), 16);
         const b = parseInt(color.slice(5,7), 16);
         currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
-        const ok = await deployToNetlify(currentHtml);
+        await deployToNetlify(currentHtml);
         updateLogs.push(`[${new Date().toLocaleString()}] تغيير اللون`);
-        interaction.editReply(ok ? "تم" : "فشل");
+        interaction.editReply("تم");
     }
     else if (interaction.commandName === "stats") {
         try {
