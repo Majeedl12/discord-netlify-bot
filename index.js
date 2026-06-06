@@ -8,64 +8,7 @@ const SITE_ID = process.env.SITE_ID;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-async function deployToNetlify(content) {
-    const sha1 = createHash("sha1").update(content).digest("hex");
-    const createRes = await fetch(`https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ files: { "/index.html": sha1 } })
-    });
-    if (!createRes.ok) return { ok: false, msg: `Create failed: ${createRes.status}` };
-    const { id: deployId } = await createRes.json();
-    const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`, {
-        method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
-    });
-    if (!uploadRes.ok) return { ok: false, msg: `Upload failed: ${uploadRes.status}` };
-    for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 1500));
-        const statusRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
-            headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }
-        });
-        if (statusRes.ok) {
-            const { state } = await statusRes.json();
-            if (state === "ready") return { ok: true, msg: "Published" };
-            if (state === "error") return { ok: false, msg: "Deploy errored" };
-        }
-    }
-    return { ok: false, msg: "Timeout" };
-}
-
-client.once("ready", async () => {
-    console.log(`Logged in as ${client.user.tag}`);
-    const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
-    await rest.put(Routes.applicationCommands(client.user.id), {
-        body: [
-            {
-                name: "app",
-                description: "رفع ملف HTML",
-                options: [{ type: 11, name: "file", description: "الملف", required: true }]
-            },
-            {
-                name: "version",
-                description: "تغيير حالة الهاك",
-                options: [
-                    { type: 3, name: "hack", description: "DELTA or Arceus Neo", required: true, choices: [{ name: "DELTA", value: "DELTA" }, { name: "Arceus Neo", value: "Arceus Neo" }] },
-                    { type: 3, name: "status", description: "الحالة الجديدة", required: true, choices: [{ name: "الاصدار الاخير", value: "الاصدار الاخير" }, { name: "يوجد تحديث", value: "يوجد تحديث" }] }
-                ]
-            },
-            {
-                name: "link",
-                description: "تغيير رابط التحميل",
-                options: [
-                    { type: 3, name: "hack", description: "DELTA or Arceus Neo", required: true, choices: [{ name: "DELTA", value: "DELTA" }, { name: "Arceus Neo", value: "Arceus Neo" }] },
-                    { type: 3, name: "url", description: "الرابط الجديد", required: true }
-                ]
-            }
-        ]
-    });
-    console.log("Commands registered");
-});
-
+let updateLogs = [];
 let currentHtml = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -255,15 +198,123 @@ function downloadWithDelay(event, url) {
 </body>
 </html>`;
 
+async function deployToNetlify(content) {
+    const sha1 = createHash("sha1").update(content).digest("hex");
+    const createRes = await fetch(`https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ files: { "/index.html": sha1 } })
+    });
+    if (!createRes.ok) return { ok: false, msg: `Create failed: ${createRes.status}` };
+    const { id: deployId } = await createRes.json();
+    const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`, {
+        method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
+    });
+    if (!uploadRes.ok) return { ok: false, msg: `Upload failed: ${uploadRes.status}` };
+    for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        const statusRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
+            headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }
+        });
+        if (statusRes.ok) {
+            const { state } = await statusRes.json();
+            if (state === "ready") return { ok: true, msg: "Published" };
+            if (state === "error") return { ok: false, msg: "Deploy errored" };
+        }
+    }
+    return { ok: false, msg: "Timeout" };
+}
+
+client.once("ready", async () => {
+    console.log(`Logged in as ${client.user.tag}`);
+    
+    try {
+        const siteUrl = `https://${SITE_ID}.netlify.app`;
+        const res = await fetch(siteUrl);
+        if (res.ok) {
+            currentHtml = await res.text();
+            console.log("Loaded current HTML from Netlify");
+        }
+    } catch (e) {
+        console.log("Error fetching from Netlify, using default");
+    }
+    
+    const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
+    await rest.put(Routes.applicationCommands(client.user.id), {
+        body: [
+            {
+                name: "app",
+                description: "رفع ملف HTML",
+                options: [{ type: 11, name: "file", description: "الملف", required: true }]
+            },
+            {
+                name: "version",
+                description: "تغيير حالة الهاك",
+                options: [
+                    { type: 3, name: "hack", description: "DELTA or Arceus Neo", required: true, choices: [{ name: "DELTA", value: "DELTA" }, { name: "Arceus Neo", value: "Arceus Neo" }] },
+                    { type: 3, name: "status", description: "الحالة الجديدة", required: true, choices: [{ name: "الاصدار الاخير", value: "الاصدار الاخير" }, { name: "يوجد تحديث", value: "يوجد تحديث" }] }
+                ]
+            },
+            {
+                name: "link",
+                description: "تغيير رابط التحميل",
+                options: [
+                    { type: 3, name: "hack", description: "DELTA or Arceus Neo", required: true, choices: [{ name: "DELTA", value: "DELTA" }, { name: "Arceus Neo", value: "Arceus Neo" }] },
+                    { type: 3, name: "url", description: "الرابط الجديد", required: true }
+                ]
+            },
+            {
+                name: "announce",
+                description: "ارسال اعلان الى قناة",
+                options: [
+                    { type: 7, name: "channel", description: "القناة", required: true },
+                    { type: 3, name: "message", description: "نص الاعلان", required: true }
+                ]
+            },
+            {
+                name: "logs",
+                description: "عرض اخر 10 تغييرات"
+            },
+            {
+                name: "design",
+                description: "تغيير لون الموقع",
+                options: [
+                    { type: 3, name: "color", description: "اللون", required: true, choices: [
+                        { name: "ازرق", value: "#3b82f6" },
+                        { name: "اخضر", value: "#10b981" },
+                        { name: "احمر", value: "#ef4444" },
+                        { name: "بنفسجي", value: "#8b5cf6" }
+                    ]}
+                ]
+            },
+            {
+                name: "stats",
+                description: "عرض احصائيات التحميلات"
+            },
+            {
+                name: "users",
+                description: "ارسال احصائيات الزوار الى قناة",
+                options: [
+                    { type: 7, name: "channel", description: "القناة", required: true }
+                ]
+            }
+        ]
+    });
+    console.log("Commands registered");
+});
+
 client.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
     await interaction.deferReply();
+    
     if (interaction.commandName === "app") {
         const file = interaction.options.getAttachment("file");
         if (!file || !file.name.endsWith(".html")) return interaction.followUp("يرجى رفع ملف html");
         const res = await fetch(file.url);
         currentHtml = await res.text();
         const { ok, msg } = await deployToNetlify(currentHtml);
+        const logEntry = `[${new Date().toLocaleString()}] تم رفع ملف جديد عبر /app`;
+        updateLogs.push(logEntry);
         interaction.followUp(ok ? `تم النشر\nhttps://${SITE_ID}.netlify.app` : `فشل: ${msg}`);
     }
     else if (interaction.commandName === "version") {
@@ -279,19 +330,70 @@ client.on("interactionCreate", async interaction => {
             });
         }
         const { ok, msg } = await deployToNetlify(currentHtml);
+        const logEntry = `[${new Date().toLocaleString()}] تم تغيير حالة ${hack} إلى ${status}`;
+        updateLogs.push(logEntry);
         interaction.followUp(ok ? `تم تغيير حالة ${hack} إلى ${status}` : `فشل: ${msg}`);
     }
     else if (interaction.commandName === "link") {
         const hack = interaction.options.getString("hack");
         const url = interaction.options.getString("url");
-        const linkPattern = /(window\.open\(')(.*?)('\))/g;
+        const linkPattern = /(downloadWithDelay\(event, ')(.*?)('\))/g;
         const matches = [...currentHtml.matchAll(linkPattern)];
         const idx = hack === "DELTA" ? 0 : 1;
         if (matches[idx]) {
-            currentHtml = currentHtml.slice(0, matches[idx].index + 13) + url + currentHtml.slice(matches[idx].index + 13 + matches[idx][2].length);
+            currentHtml = currentHtml.slice(0, matches[idx].index + 24) + url + currentHtml.slice(matches[idx].index + 24 + matches[idx][2].length);
         }
         const { ok, msg } = await deployToNetlify(currentHtml);
+        const logEntry = `[${new Date().toLocaleString()}] تم تغيير رابط ${hack} إلى ${url}`;
+        updateLogs.push(logEntry);
         interaction.followUp(ok ? `تم تغيير رابط ${hack} إلى ${url}` : `فشل: ${msg}`);
+    }
+    else if (interaction.commandName === "announce") {
+        const channel = interaction.options.getChannel("channel");
+        const message = interaction.options.getString("message");
+        if (!channel.isTextBased()) return interaction.followUp("القناة غير صالحة");
+        await channel.send(`اعلان جديد\n${message}`);
+        interaction.followUp("تم ارسال الاعلان");
+    }
+    else if (interaction.commandName === "logs") {
+        if (updateLogs.length === 0) return interaction.followUp("لا يوجد سجل تغييرات");
+        const logList = updateLogs.slice(-10).reverse().map((log, i) => `${i+1}. ${log}`).join("\n");
+        interaction.followUp(`اخر التغييرات:\n${logList}`);
+    }
+    else if (interaction.commandName === "design") {
+        const color = interaction.options.getString("color");
+        const r = parseInt(color.slice(1,3), 16);
+        const g = parseInt(color.slice(3,5), 16);
+        const b = parseInt(color.slice(5,7), 16);
+        currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
+        const { ok, msg } = await deployToNetlify(currentHtml);
+        const logEntry = `[${new Date().toLocaleString()}] تم تغيير اللون إلى ${color}`;
+        updateLogs.push(logEntry);
+        interaction.followUp(ok ? `تم تغيير اللون إلى ${color}` : `فشل: ${msg}`);
+    }
+    else if (interaction.commandName === "stats") {
+        await interaction.followUp("جاري جلب الاحصائيات...");
+        try {
+            const deltaRes = await fetch("https://api.github.com/repos/Majeedl12/Majed.dev/releases");
+            const releases = await deltaRes.json();
+            let deltaDownloads = 0, arceusDownloads = 0;
+            releases.forEach(release => {
+                if (release.tag_name && release.tag_name.includes("Delta")) {
+                    deltaDownloads += release.assets.reduce((sum, asset) => sum + (asset.download_count || 0), 0);
+                }
+                if (release.tag_name && release.tag_name.includes("Arceus")) {
+                    arceusDownloads += release.assets.reduce((sum, asset) => sum + (asset.download_count || 0), 0);
+                }
+            });
+            interaction.editReply(`احصائيات التحميلات\nDELTA: ${deltaDownloads} تحميل\nArceus Neo: ${arceusDownloads} تحميل`);
+        } catch(e) {
+            interaction.editReply("فشل جلب الاحصائيات");
+        }
+    }
+    else if (interaction.commandName === "users") {
+        const channel = interaction.options.getChannel("channel");
+        interaction.followUp(`سيتم ارسال احصائيات الزوار إلى ${channel}`);
+        channel.send("احصائيات الزوار: يتم جلب البيانات...");
     }
 });
 
