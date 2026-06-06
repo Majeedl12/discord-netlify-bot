@@ -1,19 +1,17 @@
-import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
-import fetch from 'node-fetch';
 import { createHash } from 'crypto';
+import { verifyKey } from 'discord-interactions';
+import fetch from 'node-fetch';
 
+const DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY;
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
 const SITE_ID = process.env.SITE_ID;
-
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 let currentHtml = "";
 
 async function fetchCurrentHtml() {
     try {
-        const siteUrl = `https://${SITE_ID}.netlify.app`;
-        const res = await fetch(siteUrl);
+        const res = await fetch(`https://${SITE_ID}.netlify.app`);
         if (res.ok) {
             currentHtml = await res.text();
             return true;
@@ -49,107 +47,103 @@ async function deployToNetlify(content) {
     return true;
 }
 
-client.once("ready", async () => {
-    console.log(`Logged in as ${client.user.tag}`);
-    await fetchCurrentHtml();
-    
-    const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
-    await rest.put(Routes.applicationCommands(client.user.id), {
-        body: [
-            {
-                name: "app",
-                description: "رفع ملف HTML",
-                options: [{ type: 11, name: "file", description: "الملف", required: true }]
-            },
-            {
-                name: "version",
-                description: "تغيير حالة الهاك",
-                options: [
-                    { type: 3, name: "hack", description: "DELTA or Arceus Neo", required: true, choices: [{ name: "DELTA", value: "DELTA" }, { name: "Arceus Neo", value: "Arceus Neo" }] },
-                    { type: 3, name: "status", description: "الحالة", required: true, choices: [{ name: "الاصدار الاخير", value: "الاصدار الاخير" }, { name: "يوجد تحديث", value: "يوجد تحديث" }] }
-                ]
-            },
-            {
-                name: "link",
-                description: "تغيير رابط التحميل",
-                options: [
-                    { type: 3, name: "hack", description: "DELTA or Arceus Neo", required: true, choices: [{ name: "DELTA", value: "DELTA" }, { name: "Arceus Neo", value: "Arceus Neo" }] },
-                    { type: 3, name: "url", description: "الرابط", required: true }
-                ]
-            },
-            {
-                name: "design",
-                description: "تغيير لون الموقع",
-                options: [
-                    { type: 3, name: "color", description: "اللون", required: true, choices: [
-                        { name: "ازرق", value: "blue" },
-                        { name: "اخضر", value: "green" },
-                        { name: "احمر", value: "red" },
-                        { name: "بنفسجي", value: "purple" }
-                    ]}
-                ]
-            }
-        ]
+async function sendFollowup(interactionToken, content) {
+    const url = `https://discord.com/api/v10/webhooks/${process.env.DISCORD_APP_ID}/${interactionToken}/messages/@original`;
+    await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content })
     });
-    console.log("Commands registered");
-});
+}
 
-client.on("interactionCreate", async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-    
-    await interaction.deferReply();
-    await fetchCurrentHtml();
-    
-    if (interaction.commandName === "app") {
-        const file = interaction.options.getAttachment("file");
-        if (!file || !file.name.endsWith(".html")) return interaction.editReply("ارفع ملف html");
-        const res = await fetch(file.url);
-        currentHtml = await res.text();
-        await deployToNetlify(currentHtml);
-        interaction.editReply("تم");
-    }
-    else if (interaction.commandName === "version") {
-        const hack = interaction.options.getString("hack");
-        const status = interaction.options.getString("status");
-        if (hack === "DELTA") {
-            currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/, `<div class="version">${status}</div>`);
-        } else {
-            let replaced = false;
-            currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/g, (match) => {
-                if (!replaced) { replaced = true; return `<div class="version">${status}</div>`; }
-                return match;
-            });
-        }
-        await deployToNetlify(currentHtml);
-        interaction.editReply("تم");
-    }
-    else if (interaction.commandName === "link") {
-        const hack = interaction.options.getString("hack");
-        const url = interaction.options.getString("url");
-        const linkPattern = /(downloadWithDelay\(event, ')(.*?)('\))/g;
-        const matches = [...currentHtml.matchAll(linkPattern)];
-        const idx = hack === "DELTA" ? 0 : 1;
-        if (matches[idx]) {
-            currentHtml = currentHtml.slice(0, matches[idx].index + 24) + url + currentHtml.slice(matches[idx].index + 24 + matches[idx][2].length);
-        }
-        await deployToNetlify(currentHtml);
-        interaction.editReply("تم");
-    }
-    else if (interaction.commandName === "design") {
-        const color = interaction.options.getString("color");
-        let r, g, b;
-        if (color === "blue") { r=59; g=130; b=246; }
-        else if (color === "green") { r=16; g=185; b=129; }
-        else if (color === "red") { r=239; g=68; b=68; }
-        else if (color === "purple") { r=139; g=92; b=246; }
-        else { r=59; g=130; b=246; }
-        
-        currentHtml = currentHtml.replace(/rgb\(59,130,246\)/g, `rgb(${r},${g},${b})`);
-        currentHtml = currentHtml.replace(/rgba\(59,130,246,/g, `rgba(${r},${g},${b},`);
-        
-        await deployToNetlify(currentHtml);
-        interaction.editReply("تم");
-    }
-});
+async function sendDeferredResponse(interactionToken) {
+    const url = `https://discord.com/api/v10/interactions/${interactionToken}/callback`;
+    await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: 5 })
+    });
+}
 
-client.login(DISCORD_TOKEN);
+export async function handler(req, res) {
+    if (req.method !== 'POST') {
+        return res.status(405).send('Method Not Allowed');
+    }
+
+    const signature = req.headers['x-signature-ed25519'];
+    const timestamp = req.headers['x-signature-timestamp'];
+    const body = JSON.stringify(req.body);
+    
+    const isValid = verifyKey(body, signature, timestamp, DISCORD_PUBLIC_KEY);
+    if (!isValid) {
+        return res.status(401).send('Invalid signature');
+    }
+
+    const interaction = req.body;
+    
+    if (interaction.type === 1) {
+        return res.status(200).json({ type: 1 });
+    }
+
+    if (interaction.type === 2) {
+        const { name, options } = interaction.data;
+        
+        sendDeferredResponse(interaction.id, interaction.token);
+        
+        await fetchCurrentHtml();
+        
+        if (name === "app") {
+            const fileUrl = options[0].value;
+            const fileRes = await fetch(fileUrl);
+            currentHtml = await fileRes.text();
+            await deployToNetlify(currentHtml);
+            await sendFollowup(interaction.token, "تم");
+        }
+        else if (name === "version") {
+            const hack = options.find(o => o.name === "hack").value;
+            const status = options.find(o => o.name === "status").value;
+            if (hack === "DELTA") {
+                currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/, `<div class="version">${status}</div>`);
+            } else {
+                let replaced = false;
+                currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/g, (match) => {
+                    if (!replaced) { replaced = true; return `<div class="version">${status}</div>`; }
+                    return match;
+                });
+            }
+            await deployToNetlify(currentHtml);
+            await sendFollowup(interaction.token, "تم");
+        }
+        else if (name === "link") {
+            const hack = options.find(o => o.name === "hack").value;
+            const url = options.find(o => o.name === "url").value;
+            const linkPattern = /(downloadWithDelay\(event, ')(.*?)('\))/g;
+            const matches = [...currentHtml.matchAll(linkPattern)];
+            const idx = hack === "DELTA" ? 0 : 1;
+            if (matches[idx]) {
+                currentHtml = currentHtml.slice(0, matches[idx].index + 24) + url + currentHtml.slice(matches[idx].index + 24 + matches[idx][2].length);
+            }
+            await deployToNetlify(currentHtml);
+            await sendFollowup(interaction.token, "تم");
+        }
+        else if (name === "design") {
+            const color = options.find(o => o.name === "color").value;
+            let r, g, b;
+            if (color === "blue") { r=59; g=130; b=246; }
+            else if (color === "green") { r=16; g=185; b=129; }
+            else if (color === "red") { r=239; g=68; b=68; }
+            else if (color === "purple") { r=139; g=92; b=246; }
+            else { r=59; g=130; b=246; }
+            
+            currentHtml = currentHtml.replace(/rgb\(59,130,246\)/g, `rgb(${r},${g},${b})`);
+            currentHtml = currentHtml.replace(/rgba\(59,130,246,/g, `rgba(${r},${g},${b},`);
+            
+            await deployToNetlify(currentHtml);
+            await sendFollowup(interaction.token, "تم");
+        }
+        
+        return res.status(200).json({ type: 5 });
+    }
+    
+    return res.status(400).send('Unknown interaction type');
+}
