@@ -2,8 +2,11 @@
   "name": "discord-netlify-bot",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "discord-interactions": "^3.2.0",
+    "discord.js": "^14.14.1",
     "node-fetch": "^3.3.2"
   }
 }
