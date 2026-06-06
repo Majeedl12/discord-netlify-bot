@@ -205,12 +205,12 @@ async function deployToNetlify(content) {
         headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}`, "Content-Type": "application/json" },
         body: JSON.stringify({ files: { "/index.html": sha1 } })
     });
-    if (!createRes.ok) return { ok: false, msg: `Create failed: ${createRes.status}` };
+    if (!createRes.ok) return { ok: false };
     const { id: deployId } = await createRes.json();
     const uploadRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`, {
         method: "PUT", headers: { "Authorization": `Bearer ${NETLIFY_TOKEN}` }, body: content
     });
-    if (!uploadRes.ok) return { ok: false, msg: `Upload failed: ${uploadRes.status}` };
+    if (!uploadRes.ok) return { ok: false };
     for (let i = 0; i < 20; i++) {
         await new Promise(r => setTimeout(r, 1500));
         const statusRes = await fetch(`https://api.netlify.com/api/v1/deploys/${deployId}`, {
@@ -218,11 +218,11 @@ async function deployToNetlify(content) {
         });
         if (statusRes.ok) {
             const { state } = await statusRes.json();
-            if (state === "ready") return { ok: true, msg: "Published" };
-            if (state === "error") return { ok: false, msg: "Deploy errored" };
+            if (state === "ready") return { ok: true };
+            if (state === "error") return { ok: false };
         }
     }
-    return { ok: false, msg: "Timeout" };
+    return { ok: false };
 }
 
 client.once("ready", async () => {
@@ -252,7 +252,7 @@ client.once("ready", async () => {
                 description: "تغيير حالة الهاك",
                 options: [
                     { type: 3, name: "hack", description: "DELTA or Arceus Neo", required: true, choices: [{ name: "DELTA", value: "DELTA" }, { name: "Arceus Neo", value: "Arceus Neo" }] },
-                    { type: 3, name: "status", description: "الحالة الجديدة", required: true, choices: [{ name: "الاصدار الاخير", value: "الاصدار الاخير" }, { name: "يوجد تحديث", value: "يوجد تحديث" }] }
+                    { type: 3, name: "status", description: "الحالة", required: true, choices: [{ name: "الاصدار الاخير", value: "الاصدار الاخير" }, { name: "يوجد تحديث", value: "يوجد تحديث" }] }
                 ]
             },
             {
@@ -260,24 +260,24 @@ client.once("ready", async () => {
                 description: "تغيير رابط التحميل",
                 options: [
                     { type: 3, name: "hack", description: "DELTA or Arceus Neo", required: true, choices: [{ name: "DELTA", value: "DELTA" }, { name: "Arceus Neo", value: "Arceus Neo" }] },
-                    { type: 3, name: "url", description: "الرابط الجديد", required: true }
+                    { type: 3, name: "url", description: "الرابط", required: true }
                 ]
             },
             {
                 name: "announce",
-                description: "ارسال اعلان الى قناة",
+                description: "ارسال اعلان",
                 options: [
                     { type: 7, name: "channel", description: "القناة", required: true },
-                    { type: 3, name: "message", description: "نص الاعلان", required: true }
+                    { type: 3, name: "message", description: "النص", required: true }
                 ]
             },
             {
                 name: "logs",
-                description: "عرض اخر 10 تغييرات"
+                description: "اخر 10 تغييرات"
             },
             {
                 name: "design",
-                description: "تغيير لون الموقع",
+                description: "تغيير اللون",
                 options: [
                     { type: 3, name: "color", description: "اللون", required: true, choices: [
                         { name: "ازرق", value: "#3b82f6" },
@@ -289,11 +289,11 @@ client.once("ready", async () => {
             },
             {
                 name: "stats",
-                description: "عرض احصائيات التحميلات"
+                description: "احصائيات التحميلات"
             },
             {
                 name: "users",
-                description: "ارسال احصائيات الزوار الى قناة",
+                description: "احصائيات الزوار",
                 options: [
                     { type: 7, name: "channel", description: "القناة", required: true }
                 ]
@@ -306,19 +306,18 @@ client.once("ready", async () => {
 client.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
     
+    await interaction.deferReply();
+    
     if (interaction.commandName === "app") {
-        await interaction.deferReply();
         const file = interaction.options.getAttachment("file");
         if (!file || !file.name.endsWith(".html")) return interaction.editReply("يرجى رفع ملف html");
         const res = await fetch(file.url);
         currentHtml = await res.text();
-        const { ok, msg } = await deployToNetlify(currentHtml);
-        const logEntry = `[${new Date().toLocaleString()}] تم رفع ملف جديد عبر /app`;
-        updateLogs.push(logEntry);
-        interaction.editReply(ok ? `تم النشر\nhttps://${SITE_ID}.netlify.app` : `فشل: ${msg}`);
+        const { ok } = await deployToNetlify(currentHtml);
+        updateLogs.push(`[${new Date().toLocaleString()}] تم رفع ملف جديد`);
+        interaction.editReply(ok ? `تم النشر\nhttps://${SITE_ID}.netlify.app` : "فشل النشر");
     }
     else if (interaction.commandName === "version") {
-        await interaction.deferReply();
         const hack = interaction.options.getString("hack");
         const status = interaction.options.getString("status");
         if (hack === "DELTA") {
@@ -330,13 +329,11 @@ client.on("interactionCreate", async interaction => {
                 return match;
             });
         }
-        const { ok, msg } = await deployToNetlify(currentHtml);
-        const logEntry = `[${new Date().toLocaleString()}] تم تغيير حالة ${hack} إلى ${status}`;
-        updateLogs.push(logEntry);
-        interaction.editReply(ok ? `تم تغيير حالة ${hack} إلى ${status}` : `فشل: ${msg}`);
+        const { ok } = await deployToNetlify(currentHtml);
+        updateLogs.push(`[${new Date().toLocaleString()}] تم تغيير حالة ${hack} إلى ${status}`);
+        interaction.editReply(ok ? `تم تغيير حالة ${hack}` : "فشل التغيير");
     }
     else if (interaction.commandName === "link") {
-        await interaction.deferReply();
         const hack = interaction.options.getString("hack");
         const url = interaction.options.getString("url");
         const linkPattern = /(downloadWithDelay\(event, ')(.*?)('\))/g;
@@ -345,39 +342,33 @@ client.on("interactionCreate", async interaction => {
         if (matches[idx]) {
             currentHtml = currentHtml.slice(0, matches[idx].index + 24) + url + currentHtml.slice(matches[idx].index + 24 + matches[idx][2].length);
         }
-        const { ok, msg } = await deployToNetlify(currentHtml);
-        const logEntry = `[${new Date().toLocaleString()}] تم تغيير رابط ${hack} إلى ${url}`;
-        updateLogs.push(logEntry);
-        interaction.editReply(ok ? `تم تغيير رابط ${hack} إلى ${url}` : `فشل: ${msg}`);
+        const { ok } = await deployToNetlify(currentHtml);
+        updateLogs.push(`[${new Date().toLocaleString()}] تم تغيير رابط ${hack}`);
+        interaction.editReply(ok ? `تم تغيير رابط ${hack}` : "فشل التغيير");
     }
     else if (interaction.commandName === "announce") {
-        await interaction.deferReply();
         const channel = interaction.options.getChannel("channel");
         const message = interaction.options.getString("message");
         if (!channel.isTextBased()) return interaction.editReply("القناة غير صالحة");
-        await channel.send(`اعلان جديد\n${message}`);
-        interaction.editReply("تم ارسال الاعلان");
+        await channel.send(message);
+        interaction.editReply("تم");
     }
     else if (interaction.commandName === "logs") {
-        await interaction.deferReply();
-        if (updateLogs.length === 0) return interaction.editReply("لا يوجد سجل تغييرات");
+        if (updateLogs.length === 0) return interaction.editReply("لا يوجد");
         const logList = updateLogs.slice(-10).reverse().map((log, i) => `${i+1}. ${log}`).join("\n");
-        interaction.editReply(`اخر التغييرات:\n${logList}`);
+        interaction.editReply(logList);
     }
     else if (interaction.commandName === "design") {
-        await interaction.deferReply();
         const color = interaction.options.getString("color");
         const r = parseInt(color.slice(1,3), 16);
         const g = parseInt(color.slice(3,5), 16);
         const b = parseInt(color.slice(5,7), 16);
         currentHtml = currentHtml.replace(/rgba\(59,130,246/g, `rgba(${r},${g},${b}`);
-        const { ok, msg } = await deployToNetlify(currentHtml);
-        const logEntry = `[${new Date().toLocaleString()}] تم تغيير اللون إلى ${color}`;
-        updateLogs.push(logEntry);
-        interaction.editReply(ok ? `تم تغيير اللون إلى ${color}` : `فشل: ${msg}`);
+        const { ok } = await deployToNetlify(currentHtml);
+        updateLogs.push(`[${new Date().toLocaleString()}] تم تغيير اللون`);
+        interaction.editReply(ok ? "تم تغيير اللون" : "فشل");
     }
     else if (interaction.commandName === "stats") {
-        await interaction.deferReply();
         try {
             const deltaRes = await fetch("https://api.github.com/repos/Majeedl12/Majed.dev/releases");
             const releases = await deltaRes.json();
@@ -390,16 +381,15 @@ client.on("interactionCreate", async interaction => {
                     arceusDownloads += release.assets.reduce((sum, asset) => sum + (asset.download_count || 0), 0);
                 }
             });
-            interaction.editReply(`احصائيات التحميلات\nDELTA: ${deltaDownloads} تحميل\nArceus Neo: ${arceusDownloads} تحميل`);
+            interaction.editReply(`DELTA: ${deltaDownloads}\nArceus Neo: ${arceusDownloads}`);
         } catch(e) {
-            interaction.editReply("فشل جلب الاحصائيات");
+            interaction.editReply("فشل");
         }
     }
     else if (interaction.commandName === "users") {
-        await interaction.deferReply();
         const channel = interaction.options.getChannel("channel");
-        interaction.editReply(`سيتم ارسال احصائيات الزوار إلى ${channel}`);
-        channel.send("احصائيات الزوار: يتم جلب البيانات...");
+        interaction.editReply(`تم`);
+        channel.send("يتم جلب البيانات...");
     }
 });
 
