@@ -20,7 +20,6 @@ async function fetchCurrentHtml() {
     } catch (e) {
         return false;
     }
-    return false;
 }
 
 async function deployToNetlify(content) {
@@ -97,63 +96,58 @@ client.on("interactionCreate", async interaction => {
     
     await fetchCurrentHtml();
     
-    try {
-        if (interaction.commandName === "app") {
-            const file = interaction.options.getAttachment("file");
-            if (!file || !file.name.endsWith(".html")) {
-                await interaction.editReply("ارفع ملف html");
-                return;
-            }
-            const res = await fetch(file.url);
-            currentHtml = await res.text();
-            await deployToNetlify(currentHtml);
-            await interaction.editReply("تم");
+    if (interaction.commandName === "app") {
+        const file = interaction.options.getAttachment("file");
+        if (!file || !file.name.endsWith(".html")) {
+            await interaction.editReply("ارفع ملف html");
+            return;
         }
-        else if (interaction.commandName === "version") {
-            const hack = interaction.options.getString("hack");
-            const status = interaction.options.getString("status");
-            if (hack === "DELTA") {
-                currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/, `<div class="version">${status}</div>`);
-            } else {
-                let replaced = false;
-                currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/g, (match) => {
-                    if (!replaced) { replaced = true; return `<div class="version">${status}</div>`; }
-                    return match;
-                });
-            }
-            await deployToNetlify(currentHtml);
-            await interaction.editReply("تم");
+        const res = await fetch(file.url);
+        currentHtml = await res.text();
+        await deployToNetlify(currentHtml);
+        await interaction.editReply("تم");
+    }
+    else if (interaction.commandName === "version") {
+        const hack = interaction.options.getString("hack");
+        const status = interaction.options.getString("status");
+        if (hack === "DELTA") {
+            currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/, `<div class="version">${status}</div>`);
+        } else {
+            let replaced = false;
+            currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/g, (match) => {
+                if (!replaced) { replaced = true; return `<div class="version">${status}</div>`; }
+                return match;
+            });
         }
-        else if (interaction.commandName === "link") {
-            const hack = interaction.options.getString("hack");
-            const url = interaction.options.getString("url");
-            const regex = /downloadWithDelay\(event, '([^']+)'\)/g;
-            const matches = [...currentHtml.matchAll(regex)];
-            const idx = hack === "DELTA" ? 0 : 1;
-            if (matches[idx]) {
-                currentHtml = currentHtml.replace(matches[idx][0], `downloadWithDelay(event, '${url}')`);
-            }
-            await deployToNetlify(currentHtml);
-            await interaction.editReply("تم");
+        await deployToNetlify(currentHtml);
+        await interaction.editReply("تم");
+    }
+    else if (interaction.commandName === "link") {
+        const hack = interaction.options.getString("hack");
+        const url = interaction.options.getString("url");
+        const regex = /downloadWithDelay\(event, '([^']+)'\)/g;
+        const matches = [...currentHtml.matchAll(regex)];
+        const idx = hack === "DELTA" ? 0 : 1;
+        if (matches[idx]) {
+            currentHtml = currentHtml.replace(matches[idx][0], `downloadWithDelay(event, '${url}')`);
         }
-        else if (interaction.commandName === "design") {
-            const color = interaction.options.getString("color");
-            let r, g, b;
-            if (color === "blue") { r=59; g=130; b=246; }
-            else if (color === "green") { r=16; g=185; b=129; }
-            else if (color === "red") { r=239; g=68; b=68; }
-            else if (color === "purple") { r=139; g=92; b=246; }
-            else { r=59; g=130; b=246; }
-            
-            currentHtml = currentHtml.replace(/rgb\(59,130,246\)/g, `rgb(${r},${g},${b})`);
-            currentHtml = currentHtml.replace(/rgba\(59,130,246,/g, `rgba(${r},${g},${b},`);
-            
-            await deployToNetlify(currentHtml);
-            await interaction.editReply("تم");
-        }
-    } catch (error) {
-        console.error(error);
-        await interaction.editReply("خطأ");
+        await deployToNetlify(currentHtml);
+        await interaction.editReply("تم");
+    }
+    else if (interaction.commandName === "design") {
+        const color = interaction.options.getString("color");
+        let r, g, b;
+        if (color === "blue") { r=59; g=130; b=246; }
+        else if (color === "green") { r=16; g=185; b=129; }
+        else if (color === "red") { r=239; g=68; b=68; }
+        else if (color === "purple") { r=139; g=92; b=246; }
+        else { r=59; g=130; b=246; }
+        
+        currentHtml = currentHtml.replace(/rgb\(59,130,246\)/g, `rgb(${r},${g},${b})`);
+        currentHtml = currentHtml.replace(/rgba\(59,130,246,/g, `rgba(${r},${g},${b},`);
+        
+        await deployToNetlify(currentHtml);
+        await interaction.editReply("تم");
     }
 });
 
