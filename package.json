@@ -1,10 +1,12 @@
 {
-  "name": "discord-bot",
-  "scripts": { "start": "ts-node src/index.ts" },
+  "name": "discord-netlify-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "discord.js": "^14.0.0",
-    "node-fetch": "^2.6.0",
-    "typescript": "^5.0.0",
-    "ts-node": "^10.9.0"
+    "discord.js": "^14.14.1",
+    "node-fetch": "^3.3.2"
   }
 }
