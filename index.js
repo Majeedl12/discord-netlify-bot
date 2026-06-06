@@ -2,9 +2,9 @@ const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
-const SITE_ID = process.env.SITE_ID;
+const DISCORD_TOKEN = 'MTUxMjU4OTY2ODc1ODA2NTI5NA.GV6ZUw.go26oHWx2bfU-4ORE0JZYwunULfJKa3Y3EbWD4';
+const NETLIFY_TOKEN = 'nfp_zPNkDkWrvf6RbfubMLfcTEQWRaH2pD9h734f';
+const SITE_ID = '5be14452-aab0-43df-9c07-8dd8de8222a4';
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMessages] });
 
@@ -40,6 +40,7 @@ async function deployToNetlify(content) {
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
+    
     const commands = [
         {
             name: 'app',
@@ -50,7 +51,7 @@ client.once('ready', async () => {
             name: 'version',
             description: 'تغيير حالة الهاك',
             options: [
-                { type: 3, name: 'hack', description: 'الهاك', required: true, choices: [{ name: 'DELTA', value: 'DELTA' }, { name: 'Arceus Neo', value: 'Arceus Neo' }] },
+                { type: 3, name: 'hack', description: 'DELTA or Arceus Neo', required: true, choices: [{ name: 'DELTA', value: 'DELTA' }, { name: 'Arceus Neo', value: 'Arceus Neo' }] },
                 { type: 3, name: 'status', description: 'الحالة', required: true, choices: [{ name: 'الاصدار الاخير', value: 'الاصدار الاخير' }, { name: 'يوجد تحديث', value: 'يوجد تحديث' }] }
             ]
         },
@@ -58,7 +59,7 @@ client.once('ready', async () => {
             name: 'link',
             description: 'تغيير رابط التحميل',
             options: [
-                { type: 3, name: 'hack', description: 'الهاك', required: true, choices: [{ name: 'DELTA', value: 'DELTA' }, { name: 'Arceus Neo', value: 'Arceus Neo' }] },
+                { type: 3, name: 'hack', description: 'DELTA or Arceus Neo', required: true, choices: [{ name: 'DELTA', value: 'DELTA' }, { name: 'Arceus Neo', value: 'Arceus Neo' }] },
                 { type: 3, name: 'url', description: 'الرابط', required: true }
             ]
         },
@@ -67,12 +68,15 @@ client.once('ready', async () => {
             description: 'تغيير لون الموقع',
             options: [
                 { type: 3, name: 'color', description: 'اللون', required: true, choices: [
-                    { name: 'ازرق', value: 'blue' }, { name: 'اخضر', value: 'green' },
-                    { name: 'احمر', value: 'red' }, { name: 'بنفسجي', value: 'purple' }
+                    { name: 'ازرق', value: 'blue' },
+                    { name: 'اخضر', value: 'green' },
+                    { name: 'احمر', value: 'red' },
+                    { name: 'بنفسجي', value: 'purple' }
                 ]}
             ]
         }
     ];
+    
     const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
     await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
     await fetchCurrentHtml();
@@ -82,7 +86,6 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
     
     await interaction.deferReply();
-    
     await fetchCurrentHtml();
     
     try {
@@ -104,7 +107,13 @@ client.on('interactionCreate', async interaction => {
                 currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/, `<div class="version">${status}</div>`);
             } else {
                 let replaced = false;
-                currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/g, match => replaced ? match : (replaced = true, `<div class="version">${status}</div>`));
+                currentHtml = currentHtml.replace(/<div class="version">الاصدار الاخير<\/div>/g, (match) => {
+                    if (!replaced) {
+                        replaced = true;
+                        return `<div class="version">${status}</div>`;
+                    }
+                    return match;
+                });
             }
             await deployToNetlify(currentHtml);
             await interaction.editReply('تم');
@@ -124,11 +133,11 @@ client.on('interactionCreate', async interaction => {
         else if (interaction.commandName === 'design') {
             const color = interaction.options.getString('color');
             let r, g, b;
-            if (color === 'blue') { r=59; g=130; b=246; }
-            else if (color === 'green') { r=16; g=185; b=129; }
-            else if (color === 'red') { r=239; g=68; b=68; }
-            else if (color === 'purple') { r=139; g=92; b=246; }
-            else { r=59; g=130; b=246; }
+            if (color === 'blue') { r = 59; g = 130; b = 246; }
+            else if (color === 'green') { r = 16; g = 185; b = 129; }
+            else if (color === 'red') { r = 239; g = 68; b = 68; }
+            else if (color === 'purple') { r = 139; g = 92; b = 246; }
+            else { r = 59; g = 130; b = 246; }
             currentHtml = currentHtml.replace(/rgba\(59,130,246,/g, `rgba(${r},${g},${b},`);
             await deployToNetlify(currentHtml);
             await interaction.editReply('تم');
