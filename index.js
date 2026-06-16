@@ -1,5 +1,17 @@
 const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const axios = require('axios');
+const express = require('express');
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('Bot is running');
+});
+
+app.listen(port, () => {
+    console.log(`HTTP server running on port ${port}`);
+});
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 const token = process.env.DISCORD_TOKEN;
@@ -9,13 +21,11 @@ const SITE_ID = process.env.SITE_ID;
 const HACK_CONFIG = {
     delta: {
         name: 'DELTA',
-        img: 'https://deltaexploits.gg/assets/android.webp',
         lineStart: '<div class="name">DELTA</div>',
         linkPattern: /https:\/\/github\.com\/Majeedl12\/Majed\.dev\/releases\/download\/Delta\/[^"]*\.apk/
     },
     arceus: {
         name: 'Arceus Neo',
-        img: 'https://techylist.com/wp-content/uploads/2022/11/arceus-x-first.jpeg',
         lineStart: '<div class="name">Arceus Neo</div>',
         linkPattern: /https:\/\/github\.com\/Majeedl12\/Majed\.dev\/releases\/download\/Arceus_1\/[^"]*\.apk/
     }
@@ -116,8 +126,12 @@ function updateVersionLine(html, hackKey, newVersion) {
 
 const commands = [
     new SlashCommandBuilder()
-        .setName('update')
+        .setName('android')
         .setDescription('تحديث روابط تحميل الهاكات')
+        .addStringOption(option => 
+            option.setName('link')
+                .setDescription('رابط التحميل الجديد')
+                .setRequired(true))
         .addStringOption(option => 
             option.setName('hack')
                 .setDescription('اختر الهاك')
@@ -126,10 +140,6 @@ const commands = [
                     { name: 'DELTA', value: 'delta' },
                     { name: 'Arceus Neo', value: 'arceus' }
                 ))
-        .addStringOption(option => 
-            option.setName('link')
-                .setDescription('رابط التحميل الجديد')
-                .setRequired(true))
         .addStringOption(option => 
             option.setName('version')
                 .setDescription('الاصدار الجديد')
@@ -149,7 +159,7 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
-    if (interaction.commandName !== 'update') return;
+    if (interaction.commandName !== 'android') return;
 
     await interaction.deferReply({ ephemeral: true });
 
