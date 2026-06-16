@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, SlashCommandBuilder, REST, Routes } = require('discord.js');
 const axios = require('axios');
 const express = require('express');
 const app = express();
@@ -16,6 +16,8 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const token = process.env.DISCORD_TOKEN;
 const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
 const SITE_ID = process.env.SITE_ID;
+
+let allowedRoles = [];
 
 const FULL_HTML = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -307,39 +309,108 @@ function updateLink(html, hackKey, newLink) {
     return html.replace(placeholder, newLink);
 }
 
-client.once('ready', () => {
+function hasPermission(member) {
+    if (member.id === member.guild.ownerId) return true;
+    return member.roles.cache.some(role => allowedRoles.includes(role.id));
+}
+
+const commands = [
+    new SlashCommandBuilder()
+        .setName('setup')
+        .setDescription('تحديد رتبة مسموح لها بتحديث الروابط (للمالك فقط)')
+        .addRoleOption(option => 
+            option.setName('role')
+                .setDescription('اختر الرتبة')
+                .setRequired(true)),
+    new SlashCommandBuilder()
+        .setName('android')
+        .setDescription('تحديث روابط تحميل الهاكات')
+];
+
+client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
+    const rest = new REST({ version: '10' }).setToken(token);
+    try {
+        await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+        console.log('Slash commands registered');
+    } catch (error) {
+        console.error('Error registering commands:', error);
+    }
+});
+
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isCommand()) return;
+    
+    if (interaction.commandName === 'setup') {
+        if (interaction.user.id !== interaction.guild.ownerId) {
+            return interaction.reply({ content: 'هذا الأمر فقط لمالك السيرفر', ephemeral: true });
+        }
+        
+        const role = interaction.options.getRole('role');
+        allowedRoles = [role.id];
+        await interaction.reply({ content: `تم تعيين رتبة ${role.name} لتحديث الروابط`, ephemeral: true });
+    }
+    
+    if (interaction.commandName === 'android') {
+        if (!hasPermission(interaction.member)) {
+            return interaction.reply({ content: 'ليس لديك صلاحية', ephemeral: true });
+        }
+        
+        const embed = new EmbedBuilder()
+            .setColor('#5865F2')
+            .setTitle('اختر الهاك')
+            .setDescription('اختر الهاك الذي تريد تحديث رابط تحميله');
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('select_hack')
+                    .setPlaceholder('اختر الهاك')
+                    .addOptions([
+                        { label: 'DELTA', description: 'تحديث رابط تحميل DELTA', value: 'delta' },
+                        { label: 'Arceus Neo', description: 'تحديث رابط تحميل Arceus Neo', value: 'arceus' }
+                    ])
+            );
+
+        await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    }
 });
 
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
-    if (message.content !== '!android') return;
+    if (message.content === '!setup') {
+        if (message.author.id !== message.guild.ownerId) {
+            return message.reply('هذا الأمر فقط لمالك السيرفر');
+        }
+        const role = message.mentions.roles.first();
+        if (!role) return message.reply('استخدم: !setup @رتبة');
+        allowedRoles = [role.id];
+        return message.reply(`تم تعيين رتبة ${role.name} لتحديث الروابط`);
+    }
+    
+    if (message.content === '!android') {
+        if (!hasPermission(message.member)) {
+            return message.reply('ليس لديك صلاحية');
+        }
+        
+        const embed = new EmbedBuilder()
+            .setColor('#5865F2')
+            .setTitle('اختر الهاك')
+            .setDescription('اختر الهاك الذي تريد تحديث رابط تحميله');
 
-    const embed = new EmbedBuilder()
-        .setColor('#5865F2')
-        .setTitle('اختر الهاك')
-        .setDescription('اختر الهاك الذي تريد تحديث رابط تحميله');
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('select_hack')
+                    .setPlaceholder('اختر الهاك')
+                    .addOptions([
+                        { label: 'DELTA', description: 'تحديث رابط تحميل DELTA', value: 'delta' },
+                        { label: 'Arceus Neo', description: 'تحديث رابط تحميل Arceus Neo', value: 'arceus' }
+                    ])
+            );
 
-    const row = new ActionRowBuilder()
-        .addComponents(
-            new StringSelectMenuBuilder()
-                .setCustomId('select_hack')
-                .setPlaceholder('اختر الهاك')
-                .addOptions([
-                    {
-                        label: 'DELTA',
-                        description: 'تحديث رابط تحميل DELTA',
-                        value: 'delta'
-                    },
-                    {
-                        label: 'Arceus Neo',
-                        description: 'تحديث رابط تحميل Arceus Neo',
-                        value: 'arceus'
-                    }
-                ])
-        );
-
-    await message.reply({ embeds: [embed], components: [row], ephemeral: true });
+        await message.reply({ embeds: [embed], components: [row] });
+    }
 });
 
 client.on('interactionCreate', async interaction => {
