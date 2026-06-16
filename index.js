@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const axios = require('axios');
 const express = require('express');
 const app = express();
@@ -13,7 +13,6 @@ app.listen(port, () => {
 });
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
-
 const token = process.env.DISCORD_TOKEN;
 const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
 const SITE_ID = process.env.SITE_ID;
@@ -30,6 +29,8 @@ const HACK_CONFIG = {
         linkPattern: /https:\/\/github\.com\/Majeedl12\/Majed\.dev\/releases\/download\/Arceus_1\/[^"]*\.apk/
     }
 };
+
+let waitingForLink = new Map();
 
 async function getCurrentHtml() {
     try {
@@ -124,63 +125,80 @@ function updateVersionLine(html, hackKey, newVersion) {
     return lines.join('\n');
 }
 
-const commands = [
-    new SlashCommandBuilder()
-        .setName('android')
-        .setDescription('تحديث روابط تحميل الهاكات')
-        .addStringOption(option => 
-            option.setName('link')
-                .setDescription('رابط التحميل الجديد')
-                .setRequired(true))
-        .addStringOption(option => 
-            option.setName('hack')
-                .setDescription('اختر الهاك')
-                .setRequired(true)
-                .addChoices(
-                    { name: 'DELTA', value: 'delta' },
-                    { name: 'Arceus Neo', value: 'arceus' }
-                ))
-        .addStringOption(option => 
-            option.setName('version')
-                .setDescription('الاصدار الجديد')
-                .setRequired(true))
-];
-
-client.once('ready', async () => {
+client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
-    console.log('Commands registered: /android');
+});
+
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+    if (message.content !== '!android') return;
+
+    const embed = new EmbedBuilder()
+        .setColor('#5865F2')
+        .setTitle('اختر الهاك')
+        .setDescription('اختر الهاك الذي تريد تحديث رابط تحميله');
+
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('delta')
+                .setLabel('DELTA')
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId('arceus')
+                .setLabel('Arceus Neo')
+                .setStyle(ButtonStyle.Primary)
+        );
+
+    await message.reply({ embeds: [embed], components: [row] });
 });
 
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isCommand()) return;
-    if (interaction.commandName !== 'android') return;
+    if (!interaction.isButton()) return;
 
-    await interaction.deferReply({ ephemeral: true });
+    const hackKey = interaction.customId;
+    const hackName = HACK_CONFIG[hackKey].name;
 
-    const hackKey = interaction.options.getString('hack');
-    const newLink = interaction.options.getString('link');
-    const newVersion = interaction.options.getString('version');
+    waitingForLink.set(interaction.user.id, hackKey);
+
+    await interaction.reply({ 
+        content: `✅ اخترت ${hackName}\n📎 الرجاء ارسال رابط التحميل الجديد`, 
+        ephemeral: true 
+    });
+});
+
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+    
+    const hackKey = waitingForLink.get(message.author.id);
+    if (!hackKey) return;
+
+    const newLink = message.content.trim();
+    
+    if (!newLink.startsWith('http://') && !newLink.startsWith('https://')) {
+        return message.reply('❌ الرجاء ارسال رابط صحيح يبدأ بـ http:// أو https://');
+    }
 
     try {
         let html = await getCurrentHtml();
         if (!html) {
-            return interaction.editReply({ content: 'File not found', ephemeral: true });
+            return message.reply('❌ لم يتم العثور على الملف');
         }
 
         html = updateHackLink(html, hackKey, newLink);
-        html = updateVersionLine(html, hackKey, newVersion);
+        html = updateVersionLine(html, hackKey, 'الاصدار الاخير');
 
         const success = await updateNetlify(html);
         if (!success) {
-            return interaction.editReply({ content: 'Update failed', ephemeral: true });
+            return message.reply('❌ فشل تحديث الملف');
         }
 
-        const hackName = HACK_CONFIG[hackKey].name;
-        await interaction.editReply({ content: `Updated ${hackName}\nLink: ${newLink}\nVersion: ${newVersion}`, ephemeral: true });
+        waitingForLink.delete(message.author.id);
+        await message.reply(`✅ تم تحديث رابط ${HACK_CONFIG[hackKey].name}\n📎 الرابط الجديد: ${newLink}`);
         
     } catch (error) {
         console.error(error);
-        await interaction.editReply({ content: 'Error occurred', ephemeral: true });
+        await message.reply('❌ حدث خطأ أثناء التحديث');
     }
 });
 
