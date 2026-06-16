@@ -147,14 +147,8 @@ const commands = [
 ];
 
 client.once('ready', async () => {
-    console.log(`شغال كـ ${client.user.tag}`);
-    const rest = new REST({ version: '10' }).setToken(token);
-    try {
-        await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-        console.log('تم تسجيل الأوامر');
-    } catch (error) {
-        console.error('خطأ:', error);
-    }
+    console.log(`Logged in as ${client.user.tag}`);
+    console.log('Commands registered: /android');
 });
 
 client.on('interactionCreate', async interaction => {
@@ -170,7 +164,7 @@ client.on('interactionCreate', async interaction => {
     try {
         let html = await getCurrentHtml();
         if (!html) {
-            return interaction.editReply({ content: '❌ لم يتم العثور على الملف الحالي', ephemeral: true });
+            return interaction.editReply({ content: 'File not found', ephemeral: true });
         }
 
         html = updateHackLink(html, hackKey, newLink);
@@ -178,15 +172,15 @@ client.on('interactionCreate', async interaction => {
 
         const success = await updateNetlify(html);
         if (!success) {
-            return interaction.editReply({ content: '❌ فشل تحديث الملف على Netlify', ephemeral: true });
+            return interaction.editReply({ content: 'Update failed', ephemeral: true });
         }
 
         const hackName = HACK_CONFIG[hackKey].name;
-        await interaction.editReply({ content: `✅ تم تحديث ${hackName}\n📎 الرابط الجديد: ${newLink}\n📌 الاصدار: ${newVersion}`, ephemeral: true });
+        await interaction.editReply({ content: `Updated ${hackName}\nLink: ${newLink}\nVersion: ${newVersion}`, ephemeral: true });
         
     } catch (error) {
         console.error(error);
-        await interaction.editReply({ content: '❌ حدث خطأ أثناء تحديث الرابط', ephemeral: true });
+        await interaction.editReply({ content: 'Error occurred', ephemeral: true });
     }
 });
 
