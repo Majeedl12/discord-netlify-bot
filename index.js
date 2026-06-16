@@ -32,32 +32,36 @@ const HACK_CONFIG = {
 
 let waitingForLink = new Map();
 
-async function getCurrentHtml() {
+async function updateNetlifyFile(content) {
     try {
-        const deploys = await axios.get(`https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`, {
-            headers: { Authorization: `Bearer ${NETLIFY_TOKEN}` }
-        });
-        const latestDeploy = deploys.data[0];
-        if (!latestDeploy) return null;
-        const response = await axios.get(`${latestDeploy.ssl_url}/index.html`);
+        const response = await axios.post(
+            `https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`,
+            {
+                files: {
+                    'index.html': content
+                }
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${NETLIFY_TOKEN}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
         return response.data;
     } catch (error) {
-        console.error('Error fetching HTML:', error);
+        console.error('Netlify error:', error.response?.data || error.message);
         return null;
     }
 }
 
-async function updateNetlify(content) {
+async function getCurrentHtml() {
     try {
-        await axios.post(
-            `https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`,
-            { files: { 'index.html': content } },
-            { headers: { Authorization: `Bearer ${NETLIFY_TOKEN}` } }
-        );
-        return true;
+        const response = await axios.get(`https://amc-android.netlify.app/index.html`);
+        return response.data;
     } catch (error) {
-        console.error('Error updating Netlify:', error);
-        return false;
+        console.error('Error fetching HTML:', error);
+        return null;
     }
 }
 
@@ -162,7 +166,7 @@ client.on('interactionCreate', async interaction => {
     waitingForLink.set(interaction.user.id, hackKey);
 
     await interaction.reply({ 
-        content: `✅ اخترت ${hackName}\n📎 الرجاء ارسال رابط التحميل الجديد`, 
+        content: `اخترت ${hackName} ارسل رابط التحميل الجديد`, 
         ephemeral: true 
     });
 });
@@ -176,29 +180,29 @@ client.on('messageCreate', async message => {
     const newLink = message.content.trim();
     
     if (!newLink.startsWith('http://') && !newLink.startsWith('https://')) {
-        return message.reply('❌ الرجاء ارسال رابط صحيح يبدأ بـ http:// أو https://');
+        return message.reply('ارسل رابط صحيح');
     }
 
     try {
         let html = await getCurrentHtml();
         if (!html) {
-            return message.reply('❌ لم يتم العثور على الملف');
+            return message.reply('لم يتم العثور على الملف');
         }
 
         html = updateHackLink(html, hackKey, newLink);
         html = updateVersionLine(html, hackKey, 'الاصدار الاخير');
 
-        const success = await updateNetlify(html);
-        if (!success) {
-            return message.reply('❌ فشل تحديث الملف');
+        const result = await updateNetlifyFile(html);
+        if (!result) {
+            return message.reply('فشل تحديث الملف');
         }
 
         waitingForLink.delete(message.author.id);
-        await message.reply(`✅ تم تحديث رابط ${HACK_CONFIG[hackKey].name}\n📎 الرابط الجديد: ${newLink}`);
+        await message.reply(`تم تحديث ${HACK_CONFIG[hackKey].name}`);
         
     } catch (error) {
         console.error(error);
-        await message.reply('❌ حدث خطأ أثناء التحديث');
+        await message.reply('حدث خطأ');
     }
 });
 
