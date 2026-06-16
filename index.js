@@ -17,6 +17,8 @@ const token = process.env.DISCORD_TOKEN;
 const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
 const SITE_ID = process.env.SITE_ID;
 
+let allowedRoles = [];
+
 const FULL_HTML = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -271,21 +273,21 @@ const FULL_HTML = `<!DOCTYPE html>
 </html>`;
 
 let waitingForLink = new Map();
-let allowedRoles = [];
 
 async function updateNetlifyFile(content) {
     try {
+        const JSZip = require('jszip');
+        const zip = new JSZip();
+        zip.file('index.html', content);
+        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+        
         const response = await axios.post(
             `https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`,
-            {
-                files: {
-                    'index.html': content
-                }
-            },
+            zipBuffer,
             {
                 headers: {
                     Authorization: `Bearer ${NETLIFY_TOKEN}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/zip'
                 }
             }
         );
