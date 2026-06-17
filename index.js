@@ -1,23 +1,13 @@
-const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes } = require('discord.js');
-const axios = require('axios');
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes } = require('discord.js');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+
 const app = express();
 const port = process.env.PORT || 3000;
+const indexPath = path.join(__dirname, 'index.html');
 
-app.get('/', (req, res) => {
-    res.send('Bot is running');
-});
-
-app.listen(port, () => {
-    console.log(`HTTP server running on port ${port}`);
-});
-
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-const token = process.env.DISCORD_TOKEN;
-const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
-const SITE_ID = process.env.SITE_ID;
-
-const FULL_HTML = `<!DOCTYPE html>
+const INITIAL_HTML = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -270,53 +260,40 @@ const FULL_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-async function updateNetlifyFile(content) {
-    try {
-        const deployInit = await axios.post(
-            `https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`,
-            {
-                files: {
-                    'index.html': axios.defaults.crypto ? null : 'd301c22a7f5a13346d04bc044d0812ed3e2c34a2'
-                }
-            },
-            { headers: { Authorization: `Bearer ${NETLIFY_TOKEN}` } }
-        );
-
-        const deployId = deployInit.data.id;
-
-        const response = await axios.put(
-            `https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`,
-            Buffer.from(content, 'utf8'),
-            {
-                headers: {
-                    Authorization: `Bearer ${NETLIFY_TOKEN}`,
-                    'Content-Type': 'application/octet-stream'
-                }
-            }
-        );
-        return response.data;
-    } catch (error) {
-        console.error('Netlify error:', error.response?.data || error.message);
-        return null;
-    }
+if (!fs.existsSync(indexPath)) {
+    fs.writeFileSync(indexPath, INITIAL_HTML, 'utf8');
 }
 
-function updateLink(html, hackKey, newLink) {
-    const placeholders = {
-        delta: 'https://github.com/Majeedl12/Majed.dev/releases/download/Delta/Delta-2.724.735.apk',
-        arceus: 'https://github.com/Majeedl12/Majed.dev/releases/download/Arceus_1/Roblox.Arceus.X.NEO.2.2.3.apk'
-    };
-    
-    const oldLink = placeholders[hackKey];
-    if (!oldLink) return html;
-    
-    return html.replace(oldLink, newLink);
+app.get('/', (req, res) => {
+    res.sendFile(indexPath);
+});
+
+app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+});
+
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const token = process.env.DISCORD_TOKEN;
+
+function updateLinkInFile(hackKey, newLink) {
+    let html = fs.readFileSync(indexPath, 'utf8');
+
+    if (hackKey === 'delta') {
+        html = html.replace(/<div class="card" id="card-1">[\s\S]*?downloadWithDelay\(event,\s*'([^']+)'\)/, (match, oldLink) => {
+            return match.replace(oldLink, newLink);
+        });
+    } else if (hackKey === 'arceus') {
+        html = html.replace(/<div class="card" id="card-2">[\s\S]*?downloadWithDelay\(event,\s*'([^']+)'\)/, (match, oldLink) => {
+            return match.replace(oldLink, newLink);
+        });
+    }
+
+    fs.writeFileSync(indexPath, html, 'utf8');
 }
 
 client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
     
-    // بناء الأمر بخيار الاختيار المباشر والرابط معاً
     const commands = [
         new SlashCommandBuilder()
             .setName('android')
@@ -340,7 +317,6 @@ client.once('ready', async () => {
     const rest = new REST({ version: '10' }).setToken(token);
 
     try {
-        console.log('Started refreshing application (/) commands.');
         await rest.put(
             Routes.applicationCommands(client.user.id),
             { body: commands },
@@ -359,7 +335,6 @@ client.on('interactionCreate', async interaction => {
         const newLink = interaction.options.getString('link').trim();
         const hackName = hackKey === 'delta' ? 'DELTA' : 'Arceus Neo';
 
-        
         if (!newLink.startsWith('http://') && !newLink.startsWith('https://')) {
             return interaction.reply({ 
                 content: 'خطأ: يرجى إدخال رابط صحيح يبدأ بـ http أو https', 
@@ -367,31 +342,22 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-       
         await interaction.reply({ 
-            content: `جاري معالجة وتحديث رابط ${hackName}...`, 
+            content: `جاري تحديث رابط ${hackName}...`, 
             ephemeral: true 
         });
 
         try {
-            let html = FULL_HTML;
-            html = updateLink(html, hackKey, newLink);
-
-            const result = await updateNetlifyFile(html);
-            if (!result) {
-                return interaction.editReply({ 
-                    content: 'فشل التحديث: تأكد من إعدادات توكن Netlify أو معرف الموقع SITE_ID' 
-                });
-            }
+            updateLinkInFile(hackKey, newLink);
 
             await interaction.editReply({ 
-                content: `تم تحديث رابط ${hackName} بنجاح وتم نشر التعديل على الموقع الإلكتروني`
+                content: `تم تحديث رابط ${hackName} بنجاح والموقع يعمل الآن بالرابط الجديد`
             });
             
         } catch (error) {
             console.error(error);
             await interaction.editReply({ 
-                content: 'حدث خطأ غير متوقع أثناء عملية الرفع والتحديث' 
+                content: 'حدث خطأ أثناء تعديل الملف داخلياً' 
             });
         }
     }
