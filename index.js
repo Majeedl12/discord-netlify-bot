@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes } = require('discord.js');
 const express = require('express');
+const axios = require('axios');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -18,21 +19,19 @@ const netlifyToken = process.env.NETLIFY_TOKEN;
 const siteId = process.env.SITE_ID;
 
 async function updateNetlifyLink(hackKey, newLink) {
-    const fetch = (await import('node-fetch')).default;
-
-    const getFileResponse = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/files/index.html`, {
-        headers: { 'Authorization': `Bearer ${netlifyToken}` }
-    });
-
     let html = '';
-    if (getFileResponse.ok) {
-        html = await getFileResponse.text();
-    } else {
-        const siteResponse = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}`, {
+    
+    try {
+        const getFileResponse = await axios.get(`https://api.netlify.com/api/v1/sites/${siteId}/files/index.html`, {
+            headers: { 'Authorization': `Bearer ${netlifyToken}` },
+            responseType: 'text'
+        });
+        html = getFileResponse.data;
+    } catch (e) {
+        const siteResponse = await axios.get(`https://api.netlify.com/api/v1/sites/${siteId}`, {
             headers: { 'Authorization': `Bearer ${netlifyToken}` }
         });
-        const siteData = await siteResponse.json();
-        const screenshotUrl = siteData.screenshot_url || '';
+        const screenshotUrl = siteResponse.data.screenshot_url || '';
         
         html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -171,18 +170,14 @@ async function updateNetlifyLink(hackKey, newLink) {
         });
     }
 
-    const deployResponse = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
-        method: 'POST',
+    const zipBuffer = await createZipBuffer('index.html', html);
+
+    await axios.post(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, zipBuffer, {
         headers: {
             'Authorization': `Bearer ${netlifyToken}`,
             'Content-Type': 'application/zip'
-        },
-        body: await createZipBuffer('index.html', html)
+        }
     });
-
-    if (!deployResponse.ok) {
-        throw new Error(`Netlify Deploy Failed: ${deployResponse.statusText}`);
-    }
 }
 
 async function createZipBuffer(fileName, fileContent) {
@@ -207,7 +202,7 @@ client.once('ready', async () => {
     const commands = [
         new SlashCommandBuilder()
             .setName('android')
-            .setDescription('تغيير رابط تحميل الهاك')
+            .setDescription('تغيير رابط تحميل الهاك وعمل دبلوي على نيتليفاي')
             .addStringOption(option => 
                 option.setName('hack')
                     .setDescription('اختر الهاك المراد تعديله')
@@ -249,7 +244,7 @@ client.on('interactionCreate', async interaction => {
 
         try {
             await updateNetlifyLink(hackKey, newLink);
-            await interaction.editReply({ content: `تم تحديث رابط ${hackName} بنجاح!` });
+            await interaction.editReply({ content: `تم تحديث رابط ${hackName} بنجاح وتم عمل Deploy للموقع على Netlify!` });
         } catch (error) {
             console.error(error);
             await interaction.editReply({ content: `حدث خطأ أثناء الـ Deploy: ${error.message}` });
