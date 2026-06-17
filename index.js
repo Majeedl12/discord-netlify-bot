@@ -5,9 +5,26 @@ const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
-const indexPath = path.join(__dirname, 'index.html');
+const linksPath = path.join(__dirname, 'links.json');
 
-const INITIAL_HTML = `<!DOCTYPE html>
+const DEFAULT_LINKS = {
+    delta: 'https://github.com/Majeedl12/Majed.dev/releases/download/Delta/Delta-2.724.735.apk',
+    arceus: 'https://github.com/Majeedl12/Majed.dev/releases/download/Arceus_1/Roblox.Arceus.X.NEO.2.2.3.apk'
+};
+
+if (!fs.existsSync(linksPath)) {
+    fs.writeFileSync(linksPath, JSON.stringify(DEFAULT_LINKS, null, 4), 'utf8');
+}
+
+app.get('/', (req, res) => {
+    let links = DEFAULT_LINKS;
+    try {
+        links = JSON.parse(fs.readFileSync(linksPath, 'utf8'));
+    } catch (e) {
+        links = DEFAULT_LINKS;
+    }
+
+    const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -195,12 +212,12 @@ const INITIAL_HTML = `<!DOCTYPE html>
             <div class="card" id="card-1" onclick="highlightCard(this, event)">
                 <img class="app-img" src="https://deltaexploits.gg/assets/android.webp" alt="DELTA">
                 <div class="name">DELTA</div><div class="version">الاصدار الاخير</div>
-                <a href="#" class="download-btn" onclick="downloadWithDelay(event, 'https://github.com/Majeedl12/Majed.dev/releases/download/Delta/Delta-2.724.735.apk')">تثبيت</a>
+                <a href="#" class="download-btn" onclick="downloadWithDelay(event, '${links.delta}')">تثبيت</a>
             </div>
             <div class="card" id="card-2" onclick="highlightCard(this, event)">
                 <img class="app-img" src="https://techylist.com/wp-content/uploads/2022/11/arceus-x-first.jpeg" alt="Arceus Neo">
                 <div class="name">Arceus Neo</div><div class="version">الاصدار الاخير</div>
-                <a href="#" class="download-btn" onclick="downloadWithDelay(event, 'https://github.com/Majeedl12/Majed.dev/releases/download/Arceus_1/Roblox.Arceus.X.NEO.2.2.3.apk')">تثبيت</a>
+                <a href="#" class="download-btn" onclick="downloadWithDelay(event, '${links.arceus}')">تثبيت</a>
             </div>
         </div>
         <div class="links" id="sec-links">
@@ -238,12 +255,10 @@ const INITIAL_HTML = `<!DOCTYPE html>
 
         document.addEventListener('DOMContentLoaded', function() {
             createFloatingIcons();
-            
             const title = document.getElementById('sec-title');
             const card1 = document.getElementById('card-1');
             const card2 = document.getElementById('card-2');
             const links = document.getElementById('sec-links');
-
             setTimeout(() => { title.classList.add('reveal'); }, 50);
             setTimeout(() => { card1.classList.add('reveal'); }, 120);
             setTimeout(() => { card2.classList.add('reveal'); }, 200);
@@ -260,12 +275,7 @@ const INITIAL_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-if (!fs.existsSync(indexPath)) {
-    fs.writeFileSync(indexPath, INITIAL_HTML, 'utf8');
-}
-
-app.get('/', (req, res) => {
-    res.sendFile(indexPath);
+    res.send(html);
 });
 
 app.listen(port, () => {
@@ -276,19 +286,16 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const token = process.env.DISCORD_TOKEN;
 
 function updateLinkInFile(hackKey, newLink) {
-    let html = fs.readFileSync(indexPath, 'utf8');
-
-    if (hackKey === 'delta') {
-        html = html.replace(/<div class="card" id="card-1">[\s\S]*?downloadWithDelay\(event,\s*'([^']+)'\)/, (match, oldLink) => {
-            return match.replace(oldLink, newLink);
-        });
-    } else if (hackKey === 'arceus') {
-        html = html.replace(/<div class="card" id="card-2">[\s\S]*?downloadWithDelay\(event,\s*'([^']+)'\)/, (match, oldLink) => {
-            return match.replace(oldLink, newLink);
-        });
+    let links = DEFAULT_LINKS;
+    if (fs.existsSync(linksPath)) {
+        try {
+            links = JSON.parse(fs.readFileSync(linksPath, 'utf8'));
+        } catch (e) {
+            links = DEFAULT_LINKS;
+        }
     }
-
-    fs.writeFileSync(indexPath, html, 'utf8');
+    links[hackKey] = newLink;
+    fs.writeFileSync(linksPath, JSON.stringify(links, null, 4), 'utf8');
 }
 
 client.once('ready', async () => {
@@ -337,7 +344,7 @@ client.on('interactionCreate', async interaction => {
 
         if (!newLink.startsWith('http://') && !newLink.startsWith('https://')) {
             return interaction.reply({ 
-                content: 'خطأ: يرجى إدخال رابط صحيح يبدأ بـ http أو https', 
+                content: 'خطأ: يرجى إدخل رابط صحيح يبدأ بـ http أو https', 
                 ephemeral: true 
             });
         }
