@@ -207,12 +207,12 @@ const FULL_HTML = `<!DOCTYPE html>
             <div class="card" id="card-1" onclick="highlightCard(this, event)">
                 <img class="app-img" src="https://deltaexploits.gg/assets/android.webp" alt="DELTA">
                 <div class="name">DELTA</div><div class="version">الاصدار الاخير</div>
-                <a href="#" class="download-btn" onclick="downloadWithDelay(event, 'LINK_DELTA')">تثبيت</a>
+                <a href="#" class="download-btn" onclick="downloadWithDelay(event, 'https://github.com/Majeedl12/Majed.dev/releases/download/Delta/Delta-2.724.735.apk')">تثبيت</a>
             </div>
             <div class="card" id="card-2" onclick="highlightCard(this, event)">
                 <img class="app-img" src="https://techylist.com/wp-content/uploads/2022/11/arceus-x-first.jpeg" alt="Arceus Neo">
                 <div class="name">Arceus Neo</div><div class="version">الاصدار الاخير</div>
-                <a href="#" class="download-btn" onclick="downloadWithDelay(event, 'LINK_ARCEUS')">تثبيت</a>
+                <a href="#" class="download-btn" onclick="downloadWithDelay(event, 'https://github.com/Majeedl12/Majed.dev/releases/download/Arceus_1/Roblox.Arceus.X.NEO.2.2.3.apk')">تثبيت</a>
             </div>
         </div>
         <div class="links" id="sec-links">
@@ -276,18 +276,17 @@ let waitingForLink = new Map();
 
 async function updateNetlifyFile(content) {
     try {
-        const JSZip = require('jszip');
-        const zip = new JSZip();
-        zip.file('index.html', content);
-        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
-        
         const response = await axios.post(
             `https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`,
-            zipBuffer,
+            {
+                files: {
+                    'index.html': content
+                }
+            },
             {
                 headers: {
                     Authorization: `Bearer ${NETLIFY_TOKEN}`,
-                    'Content-Type': 'application/zip'
+                    'Content-Type': 'application/json'
                 }
             }
         );
@@ -300,14 +299,14 @@ async function updateNetlifyFile(content) {
 
 function updateLink(html, hackKey, newLink) {
     const placeholders = {
-        delta: 'LINK_DELTA',
-        arceus: 'LINK_ARCEUS'
+        delta: 'https://github.com/Majeedl12/Majed.dev/releases/download/Delta/Delta-2.724.735.apk',
+        arceus: 'https://github.com/Majeedl12/Majed.dev/releases/download/Arceus_1/Roblox.Arceus.X.NEO.2.2.3.apk'
     };
     
-    const placeholder = placeholders[hackKey];
-    if (!placeholder) return html;
+    const oldLink = placeholders[hackKey];
+    if (!oldLink) return html;
     
-    return html.replace(placeholder, newLink);
+    return html.replace(oldLink, newLink);
 }
 
 function hasPermission(member) {
