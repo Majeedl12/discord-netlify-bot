@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes } = require('discord.js');
 const axios = require('axios');
 const express = require('express');
 const app = express();
@@ -12,12 +12,10 @@ app.listen(port, () => {
     console.log(`HTTP server running on port ${port}`);
 });
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const token = process.env.DISCORD_TOKEN;
 const NETLIFY_TOKEN = process.env.NETLIFY_TOKEN;
 const SITE_ID = process.env.SITE_ID;
-
-let allowedRoles = [];
 
 const FULL_HTML = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -272,21 +270,27 @@ const FULL_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-let waitingForLink = new Map();
-
 async function updateNetlifyFile(content) {
     try {
-        const response = await axios.post(
+        const deployInit = await axios.post(
             `https://api.netlify.com/api/v1/sites/${SITE_ID}/deploys`,
             {
                 files: {
-                    'index.html': content
+                    'index.html': axios.defaults.crypto ? null : 'd301c22a7f5a13346d04bc044d0812ed3e2c34a2'
                 }
             },
+            { headers: { Authorization: `Bearer ${NETLIFY_TOKEN}` } }
+        );
+
+        const deployId = deployInit.data.id;
+
+        const response = await axios.put(
+            `https://api.netlify.com/api/v1/deploys/${deployId}/files/index.html`,
+            Buffer.from(content, 'utf8'),
             {
                 headers: {
                     Authorization: `Bearer ${NETLIFY_TOKEN}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/octet-stream'
                 }
             }
         );
@@ -309,130 +313,87 @@ function updateLink(html, hackKey, newLink) {
     return html.replace(oldLink, newLink);
 }
 
-function hasPermission(member) {
-    if (member.id === member.guild.ownerId) return true;
-    return member.roles.cache.some(role => allowedRoles.includes(role.id));
-}
-
-client.once('ready', () => {
+client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}`);
-});
-
-client.on('messageCreate', async message => {
-    if (message.author.bot) return;
     
-    if (message.content === '!setup') {
-        if (message.author.id !== message.guild.ownerId) {
-            return message.reply('هذا الأمر فقط لمالك السيرفر');
-        }
-        const role = message.mentions.roles.first();
-        if (!role) return message.reply('استخدم: !setup @رتبة');
-        allowedRoles = [role.id];
-        return message.reply(`تم تعيين رتبة ${role.name}`);
-    }
-    
-    if (message.content === '!android') {
-        if (!hasPermission(message.member)) {
-            return message.reply('ليس لديك صلاحية');
-        }
-        
-        const embed = new EmbedBuilder()
-            .setColor('#5865F2')
-            .setTitle('اختر الهاك')
-            .setDescription('اختر الهاك');
+    // بناء الأمر بخيار الاختيار المباشر والرابط معاً
+    const commands = [
+        new SlashCommandBuilder()
+            .setName('android')
+            .setDescription('تغيير رابط تحميل الهاك وتحديث الموقع تلقائيا')
+            .addStringOption(option => 
+                option.setName('hack')
+                    .setDescription('اختر الهاك المراد تعديله')
+                    .setRequired(true)
+                    .addChoices(
+                        { name: 'DELTA', value: 'delta' },
+                        { name: 'Arceus Neo', value: 'arceus' }
+                    )
+            )
+            .addStringOption(option => 
+                option.setName('link')
+                    .setDescription('ضع الرابط الجديد هنا')
+                    .setRequired(true)
+            )
+    ];
 
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new StringSelectMenuBuilder()
-                    .setCustomId('select_hack')
-                    .setPlaceholder('اختر الهاك')
-                    .addOptions([
-                        { label: 'DELTA', value: 'delta' },
-                        { label: 'Arceus Neo', value: 'arceus' }
-                    ])
-            );
+    const rest = new REST({ version: '10' }).setToken(token);
 
-        await message.reply({ embeds: [embed], components: [row] });
+    try {
+        console.log('Started refreshing application (/) commands.');
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
+        console.log('Successfully reloaded application (/) commands.');
+    } catch (error) {
+        console.error(error);
     }
 });
 
 client.on('interactionCreate', async interaction => {
-    if (interaction.isCommand()) {
-        if (interaction.commandName === 'setup') {
-            if (interaction.user.id !== interaction.guild.ownerId) {
-                return interaction.reply({ content: 'فقط لمالك السيرفر', ephemeral: true });
-            }
-            const role = interaction.options.getRole('role');
-            allowedRoles = [role.id];
-            return interaction.reply({ content: `تم تعيين ${role.name}`, ephemeral: true });
-        }
-        
-        if (interaction.commandName === 'android') {
-            if (!hasPermission(interaction.member)) {
-                return interaction.reply({ content: 'ليس لديك صلاحية', ephemeral: true });
-            }
-            const embed = new EmbedBuilder()
-                .setColor('#5865F2')
-                .setTitle('اختر الهاك')
-                .setDescription('اختر الهاك');
+    if (!interaction.isChatInputCommand()) return;
 
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId('select_hack')
-                        .setPlaceholder('اختر الهاك')
-                        .addOptions([
-                            { label: 'DELTA', value: 'delta' },
-                            { label: 'Arceus Neo', value: 'arceus' }
-                        ])
-                );
-
-            await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
-        }
-    }
-    
-    if (!interaction.isStringSelectMenu()) return;
-    if (interaction.customId !== 'select_hack') return;
-
-    const hackKey = interaction.values[0];
-    const hackName = hackKey === 'delta' ? 'DELTA' : 'Arceus Neo';
-
-    waitingForLink.set(interaction.user.id, hackKey);
-
-    await interaction.reply({ 
-        content: `اخترت ${hackName} ارسل الرابط الجديد`, 
-        ephemeral: true 
-    });
-});
-
-client.on('messageCreate', async message => {
-    if (message.author.bot) return;
-    
-    const hackKey = waitingForLink.get(message.author.id);
-    if (!hackKey) return;
-
-    const newLink = message.content.trim();
-    
-    if (!newLink.startsWith('http://') && !newLink.startsWith('https://')) {
-        return message.reply('ارسل رابط صحيح');
-    }
-
-    try {
-        let html = FULL_HTML;
-        html = updateLink(html, hackKey, newLink);
-
-        const result = await updateNetlifyFile(html);
-        if (!result) {
-            return message.reply('فشل التحديث');
-        }
-
-        waitingForLink.delete(message.author.id);
+    if (interaction.commandName === 'android') {
+        const hackKey = interaction.options.getString('hack');
+        const newLink = interaction.options.getString('link').trim();
         const hackName = hackKey === 'delta' ? 'DELTA' : 'Arceus Neo';
-        await message.channel.send(`تم تحديث ${hackName}`);
+
         
-    } catch (error) {
-        console.error(error);
-        await message.reply('حدث خطأ');
+        if (!newLink.startsWith('http://') && !newLink.startsWith('https://')) {
+            return interaction.reply({ 
+                content: 'خطأ: يرجى إدخال رابط صحيح يبدأ بـ http أو https', 
+                ephemeral: true 
+            });
+        }
+
+       
+        await interaction.reply({ 
+            content: `جاري معالجة وتحديث رابط ${hackName}...`, 
+            ephemeral: true 
+        });
+
+        try {
+            let html = FULL_HTML;
+            html = updateLink(html, hackKey, newLink);
+
+            const result = await updateNetlifyFile(html);
+            if (!result) {
+                return interaction.editReply({ 
+                    content: 'فشل التحديث: تأكد من إعدادات توكن Netlify أو معرف الموقع SITE_ID' 
+                });
+            }
+
+            await interaction.editReply({ 
+                content: `تم تحديث رابط ${hackName} بنجاح وتم نشر التعديل على الموقع الإلكتروني`
+            });
+            
+        } catch (error) {
+            console.error(error);
+            await interaction.editReply({ 
+                content: 'حدث خطأ غير متوقع أثناء عملية الرفع والتحديث' 
+            });
+        }
     }
 });
 
